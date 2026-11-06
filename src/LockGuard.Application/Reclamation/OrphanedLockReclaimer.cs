@@ -10,14 +10,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Application.Reclamation;
 
-/// <summary>
-/// Applies the domain <see cref="StaleLockPolicy"/> to every lock in the store and releases the stale ones safely.
-/// <para>
-/// Safety: release is a compare-and-delete on the <em>observed</em> owner, so if the lock was released and re-acquired
-/// by a healthy session between the scan and the release, nothing happens. The previous owner also gets an abort signal
-/// so that a zombie that is still alive stops working on the resource (its watchdog will report the lease as lost too).
-/// </para>
-/// </summary>
 public sealed partial class OrphanedLockReclaimer
 {
     private readonly ILockStore _store;
@@ -45,7 +37,6 @@ public sealed partial class OrphanedLockReclaimer
         _logger = logger;
     }
 
-    /// <summary>One reclamation pass. Returns the reports of the locks that were released.</summary>
     public async Task<IReadOnlyList<LockEventReport>> ScanAsync(CancellationToken cancellationToken = default)
     {
         using var activity = LockGuardTelemetry.ActivitySource.StartActivity("lockguard.reclaimer.scan");
@@ -65,7 +56,7 @@ public sealed partial class OrphanedLockReclaimer
 
             if (!await _store.ReleaseAsync(lockInfo.Resource, lockInfo.SessionId, cancellationToken))
             {
-                continue; // owner changed meanwhile: not ours to touch
+                continue; 
             }
 
             var tag = StaleLockPolicy.ToTag(reason.Value);
@@ -99,12 +90,10 @@ public sealed partial class OrphanedLockReclaimer
         return reports;
     }
 
-    /// <summary>Removes sessions, wait records and heartbeat entries left behind by crashed instances.</summary>
     private async Task PurgeDeadInstancesAsync(IReadOnlyDictionary<string, InstanceHeartbeat> instances, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var staleAfter = _options.Reclaimer.InstanceStaleAfter;
 
-        // Keep dead instances visible for a while (3x the stale threshold) so their locks are classified as "dead" first.
         var purgeAfter = staleAfter * 3;
         var dead = instances.Values
             .Where(i => now - i.LastSeenAt > staleAfter)

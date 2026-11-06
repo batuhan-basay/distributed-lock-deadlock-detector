@@ -6,18 +6,6 @@ using StackExchange.Redis;
 
 namespace LockGuard.Infrastructure.Persistence.Redis;
 
-/// <summary>
-/// <see cref="ILockStore"/> implementing the Redlock algorithm over N independent Redis masters:
-/// <list type="number">
-///   <item>record the start time;</item>
-///   <item>run the atomic acquire script on all N nodes in parallel, each with a small per-node timeout;</item>
-///   <item>the lock is acquired iff at least N/2+1 nodes granted it AND the remaining validity
-///         <c>ttl - elapsed - drift</c> is positive (drift = <c>ttl * ClockDriftFactor + 2ms</c>);</item>
-///   <item>otherwise release it on every node (compare-and-delete) so a failed attempt never blocks others.</item>
-/// </list>
-/// Extensions (watchdog) follow the same quorum rule. Ownership is per <em>session id</em>, which makes acquisition
-/// idempotent across retries and processes.
-/// </summary>
 public sealed partial class RedlockLockStore : ILockStore
 {
     private readonly RedisNodePool _pool;
@@ -35,7 +23,6 @@ public sealed partial class RedlockLockStore : ILockStore
         _fenceKey = pool.Options.KeyPrefix + "fence";
     }
 
-    // Hash tag around the resource keeps the key layout cluster-friendly should a node itself be a Redis Cluster.
     private RedisKey LockKey(string resource) => $"{_lockPrefix}{{{resource}}}";
 
     private string? ResourceFromKey(string key)
@@ -77,7 +64,6 @@ public sealed partial class RedlockLockStore : ILockStore
                 validity);
         }
 
-        // Failed: undo the partial acquisition on every node (only deletes keys we own).
         if (granted.Count > 0)
         {
             LogQuorumFailed(resource, granted.Count, _pool.Nodes.Count, elapsed.TotalMilliseconds);
@@ -127,7 +113,7 @@ public sealed partial class RedlockLockStore : ILockStore
 
     public async Task<IReadOnlyList<LockInfo>> ListAsync(CancellationToken cancellationToken = default)
     {
-        // SCAN every node (a lock exists only where a quorum agrees, but any node can tell us which keys to inspect).
+        
         var resources = new HashSet<string>(StringComparer.Ordinal);
         foreach (var node in _pool.Nodes)
         {
@@ -159,7 +145,6 @@ public sealed partial class RedlockLockStore : ILockStore
         return [.. infos.Where(i => i is not null).Select(i => i!)];
     }
 
-    /// <summary>Quorum view of a lock: the owner seen on at least N/2+1 nodes, or <c>null</c>.</summary>
     private LockInfo? Merge(string resource, IReadOnlyList<NodeSnapshot?> snapshots)
     {
         var winner = snapshots
@@ -210,7 +195,6 @@ public sealed partial class RedlockLockStore : ILockStore
             Fence: long.TryParse((string?)parts[5], out var fence) ? fence : 0);
     }
 
-    /// <summary>Runs <paramref name="operation"/> on every node in parallel; a failed / slow node yields <c>null</c>.</summary>
     private async Task<RedisResult?[]> OnAllNodesAsync(Func<IDatabase, Task<RedisResult>> operation, CancellationToken cancellationToken)
     {
         var timeout = _pool.Options.NodeTimeout;

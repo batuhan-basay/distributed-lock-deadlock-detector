@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LockGuard.Application.Common.Behaviors;
 
-/// <summary>MediatR pipeline step that logs every request with its duration.</summary>
 public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull

@@ -8,7 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Infrastructure.BackgroundJobs;
 
-/// <summary>Leader-elected worker that sends <see cref="ReclaimStaleLocksCommand"/> every <c>Reclaimer:ScanInterval</c>.</summary>
 public sealed class OrphanedLockReclaimerService(
     IServiceScopeFactory scopes,
     ILockStore store,

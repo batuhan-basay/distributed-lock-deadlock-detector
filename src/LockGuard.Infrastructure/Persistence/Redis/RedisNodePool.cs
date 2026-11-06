@@ -4,7 +4,6 @@ using StackExchange.Redis;
 
 namespace LockGuard.Infrastructure.Persistence.Redis;
 
-/// <summary>One <see cref="ConnectionMultiplexer"/> per independent Redis master + the embedded Lua scripts.</summary>
 public sealed partial class RedisNodePool : IDisposable
 {
     private readonly ILogger<RedisNodePool> _logger;
@@ -27,7 +26,6 @@ public sealed partial class RedisNodePool : IDisposable
 
     public IReadOnlyList<IConnectionMultiplexer> Nodes { get; }
 
-    /// <summary>N/2 + 1.</summary>
     public int Quorum { get; }
 
     public IDatabase CoordinationDatabase =>
@@ -38,8 +36,6 @@ public sealed partial class RedisNodePool : IDisposable
         var config = ConfigurationOptions.Parse(
             string.IsNullOrWhiteSpace(Options.ConnectionOptions) ? endpoint : $"{endpoint},{Options.ConnectionOptions}");
 
-        // Keep retrying in the background: a node that is down must not prevent the app from starting
-        // (Redlock tolerates a minority of failed nodes).
         config.AbortOnConnectFail = false;
         config.ConnectTimeout = 2000;
         config.SyncTimeout = 2000;

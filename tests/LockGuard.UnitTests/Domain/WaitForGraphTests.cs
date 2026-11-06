@@ -15,7 +15,7 @@ public class WaitForGraphTests
     [Fact]
     public void Two_sessions_waiting_on_each_other_form_a_cycle()
     {
-        // s1 holds A, waits for B; s2 holds B, waits for A.
+        
         var holders = new Dictionary<string, string> { ["A"] = "s1", ["B"] = "s2" };
         var graph = WaitForGraph.Build([Wait("s1", "B"), Wait("s2", "A")], holders);
 
@@ -39,7 +39,7 @@ public class WaitForGraphTests
     [Fact]
     public void Simple_chain_without_back_edge_is_not_a_deadlock()
     {
-        // s1 -> s2 -> s3 (s3 is running, not waiting)
+        
         var holders = new Dictionary<string, string> { ["B"] = "s2", ["C"] = "s3" };
         var graph = WaitForGraph.Build([Wait("s1", "B"), Wait("s2", "C")], holders);
 
@@ -62,8 +62,8 @@ public class WaitForGraphTests
     {
         var holders = new Dictionary<string, string>
         {
-            ["A"] = "s1", ["B"] = "s2",   // cycle 1
-            ["X"] = "t1", ["Y"] = "t2",   // cycle 2
+            ["A"] = "s1", ["B"] = "s2",   
+            ["X"] = "t1", ["Y"] = "t2",   
             ["Z"] = "t1",
         };
         var graph = WaitForGraph.Build(
@@ -72,7 +72,7 @@ public class WaitForGraphTests
 
         var cycles = graph.FindCycles();
         Assert.Equal(2, cycles.Count);
-        Assert.DoesNotContain(cycles, c => c.Sessions.Contains("u1")); // u1 waits on a deadlocked session but is not part of a cycle
+        Assert.DoesNotContain(cycles, c => c.Sessions.Contains("u1")); 
     }
 
     [Fact]

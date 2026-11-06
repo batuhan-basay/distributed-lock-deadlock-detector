@@ -4,10 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace LockGuard.Api.ExceptionHandling;
 
-/// <summary>
-/// Maps lock exceptions that escape a handler to problem details: deadlock victim / lost lock → 409, wait timeout → 423.
-/// (The simulation handlers translate the expected ones into business outcomes themselves.)
-/// </summary>
 public sealed class DistributedLockExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)

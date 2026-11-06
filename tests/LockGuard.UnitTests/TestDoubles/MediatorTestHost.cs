@@ -7,10 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LockGuard.UnitTests.TestDoubles;
 
-/// <summary>
-/// The real Application layer (MediatR handlers + validation pipeline) on top of the in-memory persistence adapter.
-/// Hosted background services are not started; tests drive the detector through <see cref="ScanDeadlocksCommand"/>.
-/// </summary>
 internal sealed class MediatorTestHost : IAsyncDisposable
 {
     private readonly ServiceProvider _provider;
@@ -37,14 +33,12 @@ internal sealed class MediatorTestHost : IAsyncDisposable
 
     public IServiceProvider Services => _provider;
 
-    /// <summary>Sends a request in its own scope, like an HTTP request.</summary>
     public async Task<TResponse> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
         await using var scope = _provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(request, cancellationToken);
     }
 
-    /// <summary>What the leader-elected <c>DeadlockDetectorService</c> does in production.</summary>
     public async Task RunDetectorAsync(CancellationToken cancellationToken)
     {
         try

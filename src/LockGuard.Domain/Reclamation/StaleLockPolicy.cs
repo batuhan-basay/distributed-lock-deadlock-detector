@@ -3,16 +3,9 @@ using LockGuard.Domain.Locks;
 
 namespace LockGuard.Domain.Reclamation;
 
-/// <summary>
-/// Pure rule set deciding whether a lock is stale / orphaned. The reclaimer applies it; tests exercise it directly.
-/// </summary>
-/// <param name="InstanceStaleAfter">An instance whose heartbeat is older than this is considered crashed.</param>
-/// <param name="MinLockAge">Locks younger than this are never reclaimed (protects against heartbeat/acquire races).</param>
-/// <param name="MaxHoldTime">Upper bound for holding a lock (zombie protection).</param>
-/// <param name="ReclaimLocksWithoutExpiry">Reclaim keys that were written without any expiry.</param>
 public sealed record StaleLockPolicy(TimeSpan InstanceStaleAfter, TimeSpan MinLockAge, TimeSpan MaxHoldTime, bool ReclaimLocksWithoutExpiry)
 {
-    /// <summary>Returns the reason why <paramref name="lockInfo"/> is stale, or <c>null</c> when it is healthy.</summary>
+    
     public StaleLockReason? Classify(LockInfo lockInfo, IReadOnlyDictionary<string, InstanceHeartbeat> instances, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(lockInfo);
@@ -25,7 +18,7 @@ public sealed record StaleLockPolicy(TimeSpan InstanceStaleAfter, TimeSpan MinLo
 
         if (lockInfo.HeldFor(now) < MinLockAge)
         {
-            return null; // too young: the owner may not have published its first heartbeat yet
+            return null; 
         }
 
         if (!instances.TryGetValue(lockInfo.InstanceId, out var heartbeat))
@@ -51,7 +44,6 @@ public sealed record StaleLockPolicy(TimeSpan InstanceStaleAfter, TimeSpan MinLo
         return null;
     }
 
-    /// <summary>Stable snake_case tag used in metrics and reports.</summary>
     public static string ToTag(StaleLockReason reason) => reason switch
     {
         StaleLockReason.OwnerInstanceUnknown => "owner_instance_unknown",

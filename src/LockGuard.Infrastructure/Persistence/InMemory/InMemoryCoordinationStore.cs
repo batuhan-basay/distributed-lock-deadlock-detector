@@ -6,7 +6,6 @@ using LockGuard.Domain.Sessions;
 
 namespace LockGuard.Infrastructure.Persistence.InMemory;
 
-/// <summary>Single-process <see cref="ICoordinationStore"/> for tests and Redis-less local runs.</summary>
 public sealed class InMemoryCoordinationStore(TimeProvider time) : ICoordinationStore
 {
     private const int MaxEvents = 200;

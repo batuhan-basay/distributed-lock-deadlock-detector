@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddApplication(options =>
     {
-        // This process exists to run the deadlock detector and the orphaned lock reclaimer.
+        
         options.Detection.Enabled = true;
         options.Reclaimer.Enabled = true;
     })
@@ -22,7 +22,6 @@ var app = builder.Build();
 
 app.MapOperationalEndpoints();
 
-// Small status page: which background roles run here, and whether this instance is the leader of each.
 app.MapGet("/", (IEnumerable<IHostedService> services, IOptions<LockGuardOptions> options) => Results.Ok(new
 {
     service = options.Value.ServiceName,

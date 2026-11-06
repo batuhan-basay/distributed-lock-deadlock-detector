@@ -24,11 +24,11 @@ public sealed class RunDeadlockScenarioCommandHandler(IDistributedLockManager lo
             try
             {
                 var first = await session.AcquireAsync(request.FirstResource, cancellationToken);
-                await Task.Delay(TimeSpan.FromMilliseconds(request.HoldMs), time, cancellationToken); // widen the race window
+                await Task.Delay(TimeSpan.FromMilliseconds(request.HoldMs), time, cancellationToken); 
                 var second = await session.AcquireAsync(request.SecondResource, cancellationToken);
 
-                await Task.Delay(TimeSpan.FromMilliseconds(request.WorkMs), time, session.LockLost); // critical section
-                await session.EnsureLocksHeldAsync(cancellationToken);                              // verify before "commit"
+                await Task.Delay(TimeSpan.FromMilliseconds(request.WorkMs), time, session.LockLost); 
+                await session.EnsureLocksHeldAsync(cancellationToken);                              
 
                 return new TransferResponse(
                     ScenarioOutcome.Completed,
@@ -43,7 +43,6 @@ public sealed class RunDeadlockScenarioCommandHandler(IDistributedLockManager lo
             {
                 previousAttempts.Add(new FailedAttemptDto(session.SessionId, ScenarioOutcome.DeadlockVictim, ex.Signal.Details));
 
-                // Back off longer than the lock retry delay so the surviving session can take the lock we just released.
                 await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(400, 900) * (attempt + 1)), time, cancellationToken);
             }
             catch (DeadlockVictimException ex)

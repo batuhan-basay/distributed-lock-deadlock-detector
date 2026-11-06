@@ -11,19 +11,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Application.Detection;
 
-/// <summary>
-/// Periodically builds the cluster-wide Wait-For Graph and resolves deadlocks.
-/// <para>Resolution protocol:</para>
-/// <list type="number">
-///   <item>A cycle must be seen in <see cref="DeadlockDetectionOptions.ConfirmationScans"/> consecutive scans (phantom deadlock guard).</item>
-///   <item>A victim is chosen by <see cref="IDeadlockVictimSelector"/> and receives an <see cref="AbortSignal"/>. The victim's
-///         acquisition loop sees it on its next retry, releases all its locks and throws <c>DeadlockVictimException</c>.</item>
-///   <item>If the cycle is still there after <see cref="DeadlockDetectionOptions.VictimForceReleaseAfter"/> (victim process hung
-///         or crashed mid-wait), the detector force-releases the victim's locks with compare-and-delete.</item>
-///   <item>When the cycle disappears, a <see cref="LockEventKind.DeadlockResolved"/> report with the time-to-resolve is written.</item>
-/// </list>
-/// The detector is not thread-safe; it is driven by a single background loop (leader only) through the <c>ScanDeadlocksCommand</c>.
-/// </summary>
 public sealed partial class DeadlockDetector
 {
     private readonly ILockStore _store;
@@ -55,14 +42,12 @@ public sealed partial class DeadlockDetector
 
     private DeadlockDetectionOptions Options => _options.Detection;
 
-    /// <summary>Builds the current Wait-For Graph without acting on it (used by the diagnostics API).</summary>
     public async Task<WaitForGraphSnapshot> CaptureAsync(CancellationToken cancellationToken = default)
     {
         var (graph, _) = await BuildGraphAsync(cancellationToken);
         return new WaitForGraphSnapshot(_time.GetUtcNow(), graph.Edges, graph.FindCycles());
     }
 
-    /// <summary>One detection + resolution pass.</summary>
     public async Task<WaitForGraphSnapshot> ScanAsync(CancellationToken cancellationToken = default)
     {
         using var activity = LockGuardTelemetry.ActivitySource.StartActivity("lockguard.detector.scan");
@@ -99,7 +84,6 @@ public sealed partial class DeadlockDetector
             }
         }
 
-        // Cycles that disappeared since the last scan were resolved (or were phantoms that never got confirmed).
         foreach (var signature in _tracked.Keys.Where(k => !seen.Contains(k)).ToList())
         {
             var gone = _tracked[signature];

@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.UnitTests.TestDoubles;
 
-/// <summary>Wires the real LockGuard components on top of the in-memory stores (no DI container, no host).</summary>
 internal sealed class LockGuardTestHost : IAsyncDisposable
 {
     public LockGuardTestHost(TimeProvider? time = null, Action<LockGuardOptions>? configure = null,
@@ -46,7 +45,6 @@ internal sealed class LockGuardTestHost : IAsyncDisposable
     public DeadlockDetector Detector { get; }
     public OrphanedLockReclaimer Reclaimer { get; }
 
-    /// <summary>Runs the detector in a background loop (what DeadlockDetectorService does in production).</summary>
     public async Task RunDetectorAsync(CancellationToken cancellationToken)
     {
         try

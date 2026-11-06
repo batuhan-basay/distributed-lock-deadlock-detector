@@ -2,16 +2,6 @@ using LockGuard.Domain.Sessions;
 
 namespace LockGuard.Domain.Deadlocks;
 
-/// <summary>
-/// Default policy, similar to what relational databases do:
-/// <list type="number">
-///   <item>lowest <see cref="SessionInfo.Priority"/> first (business-critical sessions survive);</item>
-///   <item>then the session holding the fewest locks (least work to roll back);</item>
-///   <item>then the youngest session (it has done the least work, and older sessions are not starved);</item>
-///   <item>finally the ordinal-largest id, so the decision is deterministic across detector instances.</item>
-/// </list>
-/// Sessions without metadata (e.g. their process crashed) are preferred as victims.
-/// </summary>
 public sealed class DefaultDeadlockVictimSelector : IDeadlockVictimSelector
 {
     public string SelectVictim(DeadlockCycle cycle, IReadOnlyDictionary<string, SessionInfo> sessions, IReadOnlyDictionary<string, int> heldLockCount)

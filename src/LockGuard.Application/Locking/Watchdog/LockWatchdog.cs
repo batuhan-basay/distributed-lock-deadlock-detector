@@ -9,16 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Application.Locking.Watchdog;
 
-/// <summary>
-/// Lock watchdog (lease auto-extension). Every held lock is written with a short TTL so that it disappears quickly if
-/// this process crashes. While the work is still running, <see cref="RenewDueLeasesAsync"/> extends the TTL every
-/// <c>LeaseTime * RenewalRatio</c>. When an extension fails (the lock expired or was reclaimed) the owner is notified
-/// through <see cref="LeaseRegistration.LostToken"/>.
-/// <para>
-/// This class holds the lease registry and the renewal logic only; the periodic loop that drives it lives in the
-/// Infrastructure layer (<c>LockWatchdogHostedService</c>).
-/// </para>
-/// </summary>
 public sealed partial class LockWatchdog
 {
     private readonly ConcurrentDictionary<(string Resource, string SessionId), Lease> _leases = new();
@@ -44,7 +34,6 @@ public sealed partial class LockWatchdog
 
     public int ActiveLeases => _leases.Count;
 
-    /// <summary>Starts tracking a lease; <paramref name="onLost"/> is invoked once if the lease cannot be renewed.</summary>
     public LeaseRegistration Track(string resource, string sessionId, TimeSpan leaseTime, Action<string>? onLost = null)
     {
         var lease = new Lease(resource, sessionId, leaseTime, _time.GetUtcNow(), onLost);
@@ -53,11 +42,9 @@ public sealed partial class LockWatchdog
     }
 
     public void Untrack(string resource, string sessionId) =>
-        // The CancellationTokenSource is intentionally not disposed: callers may still hold its token.
+        
         _leases.TryRemove((resource, sessionId), out _);
 
-    /// <summary>Renews every lease that is due.</summary>
-    /// <returns>Number of leases successfully renewed.</returns>
     public async Task<int> RenewDueLeasesAsync(CancellationToken cancellationToken = default)
     {
         var now = _time.GetUtcNow();
@@ -101,7 +88,6 @@ public sealed partial class LockWatchdog
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             LogRenewalError(ex, lease.Resource, lease.SessionId);
 
-            // If we could not renew for a whole lease period, the lock has certainly expired in the store.
             if (_time.GetUtcNow() - lease.LastRenewedAt >= lease.LeaseTime)
             {
                 MarkLost(lease, $"lease expired while the store was unreachable ({ex.GetType().Name})");

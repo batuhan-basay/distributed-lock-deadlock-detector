@@ -3,10 +3,6 @@ using MediatR;
 
 namespace LockGuard.Application.Common.Behaviors;
 
-/// <summary>
-/// MediatR pipeline step that runs every FluentValidation validator registered for the request and throws a
-/// <see cref="ValidationException"/> (mapped to HTTP 400 by the API) before the handler is invoked.
-/// </summary>
 public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull

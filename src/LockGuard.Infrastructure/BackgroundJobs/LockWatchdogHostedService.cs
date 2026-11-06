@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Infrastructure.BackgroundJobs;
 
-/// <summary>Drives <see cref="LockWatchdog.RenewDueLeasesAsync"/> every <see cref="WatchdogOptions.TickInterval"/>.</summary>
 public sealed partial class LockWatchdogHostedService(
     LockWatchdog watchdog,
     TimeProvider time,

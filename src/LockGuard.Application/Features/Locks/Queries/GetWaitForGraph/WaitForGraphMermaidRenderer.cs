@@ -3,7 +3,6 @@ using LockGuard.Domain.Deadlocks;
 
 namespace LockGuard.Application.Features.Locks.Queries.GetWaitForGraph;
 
-/// <summary>Renders a <see cref="WaitForGraphSnapshot"/> as a Mermaid <c>graph LR</c>; deadlocked sessions are highlighted.</summary>
 public static class WaitForGraphMermaidRenderer
 {
     public static string Render(WaitForGraphSnapshot snapshot)

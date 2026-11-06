@@ -2,11 +2,6 @@ using LockGuard.Domain.Coordination;
 
 namespace LockGuard.Domain.Deadlocks;
 
-/// <summary>
-/// Wait-For Graph (WFG). Vertices are sessions; an edge <c>W → H</c> means "session W is blocked on a resource that
-/// session H holds". A deadlock exists iff the graph contains a cycle. Cycles are found with Tarjan's strongly connected
-/// components algorithm (iterative, O(V + E)); for every non-trivial SCC one concrete cycle is extracted for reporting.
-/// </summary>
 public sealed class WaitForGraph
 {
     private readonly Dictionary<string, List<WaitEdge>> _adjacency;
@@ -28,11 +23,6 @@ public sealed class WaitForGraph
 
     public IReadOnlyList<WaitEdge> Edges { get; }
 
-    /// <summary>
-    /// Builds the graph from wait records and the <em>current</em> holder of each waited resource.
-    /// The holder is resolved at scan time (not taken from the wait record) because ownership may have changed since the
-    /// waiter last observed it.
-    /// </summary>
     public static WaitForGraph Build(IEnumerable<WaitRecord> waits, IReadOnlyDictionary<string, string> holderByResource)
     {
         var edges = new List<WaitEdge>();
@@ -40,12 +30,12 @@ public sealed class WaitForGraph
         {
             if (!holderByResource.TryGetValue(wait.Resource, out var holder))
             {
-                continue; // resource is free now: the waiter will get it on its next retry
+                continue; 
             }
 
             if (string.Equals(holder, wait.WaiterSessionId, StringComparison.Ordinal))
             {
-                continue; // re-entrant / already acquired, not a real wait
+                continue; 
             }
 
             edges.Add(new WaitEdge(wait.WaiterSessionId, holder, wait.Resource, wait.WaitingSince));
@@ -56,7 +46,6 @@ public sealed class WaitForGraph
 
     public static WaitForGraph FromEdges(IEnumerable<WaitEdge> edges) => new([.. edges]);
 
-    /// <summary>Returns one cycle per strongly connected component that contains a cycle.</summary>
     public IReadOnlyList<DeadlockCycle> FindCycles()
     {
         var cycles = new List<DeadlockCycle>();
@@ -64,7 +53,7 @@ public sealed class WaitForGraph
         {
             if (component.Count < 2)
             {
-                continue; // self-loops are filtered in Build, so singletons are never deadlocked
+                continue; 
             }
 
             var cycle = ExtractCycle(component);
@@ -86,7 +75,6 @@ public sealed class WaitForGraph
         var stack = new Stack<string>();
         var components = new List<HashSet<string>>();
 
-        // Deterministic iteration order makes reports reproducible.
         var vertices = Edges.SelectMany(e => new[] { e.WaiterSessionId, e.HolderSessionId })
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
@@ -98,7 +86,6 @@ public sealed class WaitForGraph
                 continue;
             }
 
-            // Iterative Tarjan: (vertex, index of the next outgoing edge to explore).
             var callStack = new Stack<(string Vertex, int NextEdge)>();
             Visit(root);
 
@@ -123,7 +110,6 @@ public sealed class WaitForGraph
                     continue;
                 }
 
-                // All successors of v explored.
                 if (lowLink[v] == indices[v])
                 {
                     var component = new HashSet<string>(StringComparer.Ordinal);
@@ -160,7 +146,6 @@ public sealed class WaitForGraph
         return components;
     }
 
-    /// <summary>Shortest cycle through the ordinal-smallest vertex of the component (BFS restricted to the component).</summary>
     private DeadlockCycle? ExtractCycle(HashSet<string> component)
     {
         var start = component.Order(StringComparer.Ordinal).First();
@@ -182,7 +167,7 @@ public sealed class WaitForGraph
 
                 if (string.Equals(w, start, StringComparison.Ordinal))
                 {
-                    // Reconstruct start → ... → v, then close with v → start.
+                    
                     var path = new List<WaitEdge> { edge };
                     var cursor = v;
                     while (!string.Equals(cursor, start, StringComparison.Ordinal))

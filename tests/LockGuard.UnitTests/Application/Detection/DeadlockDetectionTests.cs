@@ -9,10 +9,6 @@ using LockGuard.UnitTests.TestDoubles;
 
 namespace LockGuard.UnitTests.Application.Detection;
 
-/// <summary>
-/// End-to-end deadlock scenarios: real sessions racing with <see cref="Task.WhenAll(Task[])"/> while the detector runs in
-/// the background, exactly like the API endpoints <c>/api/test/deadlock-scenario-a</c> and <c>-b</c>.
-/// </summary>
 public class DeadlockDetectionTests
 {
     private static async Task<string> TransferAsync(IDistributedLockManager locks, string first, string second, TaskCompletionSource bothHoldFirstLock, Func<Task> onFirstAcquired)
@@ -58,7 +54,6 @@ public class DeadlockDetectionTests
         Assert.Equal(1, results.Count(r => r == "victim"));
         Assert.Equal(1, results.Count(r => r == "completed"));
 
-        // Give the detector a couple of scans to notice the cycle is gone and write the resolution report.
         await Task.Delay(300);
         await cts.CancelAsync();
         await detector;
@@ -108,7 +103,6 @@ public class DeadlockDetectionTests
         await using var host = new LockGuardTestHost(configure: o => o.Detection.ConfirmationScans = 3);
         var now = host.Time.GetUtcNow();
 
-        // Hand-made cycle: g1 holds A and waits for B, g2 holds B and waits for A.
         host.Store.Seed("A", new LockOwner("g1", "svc", "i"), now, TimeSpan.FromMinutes(1));
         host.Store.Seed("B", new LockOwner("g2", "svc", "i"), now, TimeSpan.FromMinutes(1));
         await host.Coordination.RecordWaitAsync(new WaitRecord("g1", "B", "g2", "svc", "i", now, now));
@@ -136,8 +130,6 @@ public class DeadlockDetectionTests
         using var cts = new CancellationTokenSource();
         var detector = host.RunDetectorAsync(cts.Token);
 
-        // A "ghost" session (hung process: alive enough to keep its wait record fresh, but never reacting to the abort signal)
-        // holds A and waits for B.
         var ghost = new LockOwner("ghost", "legacy-svc", "hung-instance");
         host.Store.Seed("A", ghost, host.Time.GetUtcNow(), TimeSpan.FromMinutes(5));
         using var refresher = new CancellationTokenSource();
@@ -151,10 +143,9 @@ public class DeadlockDetectionTests
             }
         });
 
-        // A healthy session holds B and wants A -> cycle ghost <-> healthy.
         await using var healthy = await host.Manager.BeginSessionAsync(new LockSessionOptions { Priority = 10 });
         await using var b = await healthy.AcquireAsync("B");
-        await using var a = await healthy.AcquireAsync("A"); // succeeds only after the ghost is force-released
+        await using var a = await healthy.AcquireAsync("A"); 
 
         await refresher.CancelAsync();
         await keepGhostWaiting;
@@ -171,7 +162,7 @@ public class DeadlockDetectionTests
     {
         await using var host = new LockGuardTestHost(configure: o => o.Detection.ConfirmationScans = 1);
         var now = host.Time.GetUtcNow();
-        var old = now - TimeSpan.FromMinutes(1); // waiters stopped refreshing a minute ago (crashed / gave up)
+        var old = now - TimeSpan.FromMinutes(1); 
 
         host.Store.Seed("A", new LockOwner("g1", "svc", "i"), now, TimeSpan.FromMinutes(1));
         host.Store.Seed("B", new LockOwner("g2", "svc", "i"), now, TimeSpan.FromMinutes(1));

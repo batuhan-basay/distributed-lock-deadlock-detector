@@ -3,15 +3,6 @@ using System.Diagnostics.Metrics;
 
 namespace LockGuard.Application.Common.Telemetry;
 
-/// <summary>
-/// Metrics + traces emitted by LockGuard. Instrument names follow OpenTelemetry semantic conventions;
-/// the Prometheus exporter turns <c>lockguard.lock.wait.duration</c> (unit <c>s</c>) into
-/// <c>lockguard_lock_wait_duration_seconds_bucket</c>, counters get a <c>_total</c> suffix.
-/// <para>
-/// Resource names such as <c>order:42</c> are high-cardinality, so metrics are tagged with the
-/// <em>resource group</em> (the prefix before the first ':') instead of the full resource name.
-/// </para>
-/// </summary>
 public sealed class LockGuardTelemetry : IDisposable
 {
     public const string MeterName = "LockGuard";
@@ -27,7 +18,7 @@ public sealed class LockGuardTelemetry : IDisposable
 
     public LockGuardTelemetry(IMeterFactory? meterFactory = null)
     {
-        // A meter created by IMeterFactory is owned (and disposed) by the factory.
+        
         _ownsMeter = meterFactory is null;
         _meter = meterFactory?.Create(MeterName, "1.0.0") ?? new Meter(MeterName, "1.0.0");
 

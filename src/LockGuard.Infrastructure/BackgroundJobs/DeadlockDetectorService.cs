@@ -8,7 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Infrastructure.BackgroundJobs;
 
-/// <summary>Leader-elected worker that sends <see cref="ScanDeadlocksCommand"/> every <c>Detection:ScanInterval</c>.</summary>
 public sealed class DeadlockDetectorService(
     IServiceScopeFactory scopes,
     ILockStore store,

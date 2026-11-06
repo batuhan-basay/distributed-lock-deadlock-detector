@@ -1,6 +1,5 @@
 namespace LockGuard.Domain.Locks;
 
-/// <summary>Result of one acquisition attempt.</summary>
 public sealed record AcquireResult(
     AcquireStatus Status,
     long FencingToken,

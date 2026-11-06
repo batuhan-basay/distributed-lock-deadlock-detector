@@ -11,18 +11,12 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace LockGuard.Api.Endpoints;
 
-/// <summary>
-/// Endpoints that reproduce lock problems on purpose so that the detector, reclaimer and watchdog can be watched live.
-/// Each endpoint only builds a command and sends it through MediatR.
-/// </summary>
 public static class SimulationEndpoints
 {
     public static IEndpointRouteBuilder MapSimulationEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/test").WithTags("Simulation");
 
-        // Fire A and B at (almost) the same time: A takes account:A then account:B, B the opposite order.
-        // The detector finds the cycle, aborts one victim (HTTP 409) and the other completes.
         group.MapPost("/deadlock-scenario-a", async (
                 ISender sender,
                 [FromHeader(Name = LockGuardHeaders.SessionId)] string? sessionId,
@@ -35,7 +29,6 @@ public static class SimulationEndpoints
                 int holdMs = 1500, int workMs = 200, int maxRetries = 0, CancellationToken ct = default) =>
             (await sender.Send(RunDeadlockScenarioCommand.ScenarioB(holdMs, workMs, maxRetries, sessionId), ct)).ToHttpResult());
 
-        // Prevention: same opposite-order request, but locks are taken in global order.
         group.MapPost("/deadlock-scenario-safe", async (
                 ISender sender,
                 [FromHeader(Name = LockGuardHeaders.SessionId)] string? sessionId,

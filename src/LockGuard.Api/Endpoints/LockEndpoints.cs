@@ -8,7 +8,6 @@ using MediatR;
 
 namespace LockGuard.Api.Endpoints;
 
-/// <summary>Read-only diagnostics over the lock store and coordination data (queries).</summary>
 public static class LockEndpoints
 {
     public static IEndpointRouteBuilder MapLockEndpoints(this IEndpointRouteBuilder routes)

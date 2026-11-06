@@ -7,7 +7,6 @@ using LockGuard.UnitTests.TestDoubles;
 
 namespace LockGuard.UnitTests.Application.Features.Simulations;
 
-/// <summary>Scenario A and B sent through MediatR at the same time, exactly like the two HTTP endpoints.</summary>
 public class RunDeadlockScenarioCommandHandlerTests
 {
     [Fact]

@@ -8,16 +8,6 @@ using StackExchange.Redis;
 
 namespace LockGuard.Infrastructure.Persistence.Redis;
 
-/// <summary>
-/// Advisory coordination data on a single Redis node:
-/// <code>
-/// {prefix}sessions   HASH  sessionId  -> SessionInfo json
-/// {prefix}waits      HASH  sessionId  -> WaitRecord json      (edges of the Wait-For Graph)
-/// {prefix}instances  HASH  instanceId -> last heartbeat (unix ms)
-/// {prefix}abort:{id} STRING AbortSignal json (PX ttl)
-/// {prefix}events     LIST  LockEventReport json (newest first, capped)
-/// </code>
-/// </summary>
 public sealed class RedisCoordinationStore : ICoordinationStore
 {
     private const int MaxEvents = 200;

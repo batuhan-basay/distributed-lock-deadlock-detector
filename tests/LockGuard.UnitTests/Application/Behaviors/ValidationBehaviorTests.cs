@@ -19,7 +19,6 @@ public class ValidationBehaviorTests
         Assert.Contains(ex.Errors, e => e.PropertyName == nameof(RunDeadlockScenarioCommand.SecondResource));
         Assert.Contains(ex.Errors, e => e.PropertyName == nameof(RunDeadlockScenarioCommand.HoldMs));
 
-        // The handler never ran: no lock was taken.
         Assert.Empty(await host.SendAsync(new GetLocksQuery()));
     }
 

@@ -9,7 +9,7 @@ public sealed class GetLockEventsQueryHandler(ICoordinationStore coordination)
 {
     public async Task<IReadOnlyList<LockEventReport>> Handle(GetLockEventsQuery request, CancellationToken cancellationToken)
     {
-        // When filtering by kind, read the whole (capped) log so the filter still returns up to Count items.
+        
         var events = await coordination.GetRecentEventsAsync(
             request.Kind is null ? request.Count : GetLockEventsQuery.MaxCount, cancellationToken);
 

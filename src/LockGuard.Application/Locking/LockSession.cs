@@ -6,11 +6,6 @@ using LockGuard.Domain.Sessions;
 
 namespace LockGuard.Application.Locking;
 
-/// <summary>
-/// A logical lock owner (transaction / request scope). Locks are re-entrant per session: acquiring a resource that the
-/// session already holds just increments a hold count, and the lock is released in the store only when the last
-/// handle is disposed. Disposing the session releases everything it still holds.
-/// </summary>
 public sealed class LockSession : IAsyncDisposable
 {
     private readonly DistributedLockManager _manager;
@@ -34,10 +29,8 @@ public sealed class LockSession : IAsyncDisposable
     public TimeSpan LeaseTime { get; }
     public TimeSpan WaitTimeout { get; }
 
-    /// <summary>Cancelled when any lock of this session is lost (expired / reclaimed). Pass it to the critical section's I/O.</summary>
     public CancellationToken LockLost => _lockLost.Token;
 
-    /// <summary>Reason of the first lost lock, if any.</summary>
     public string? LockLostReason { get; private set; }
 
     public IReadOnlyDictionary<string, int> HeldResources
@@ -56,17 +49,11 @@ public sealed class LockSession : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Acquires <paramref name="resource"/>, waiting while it is held by another session.
-    /// Throws <see cref="LockAcquisitionTimeoutException"/> or <see cref="DeadlockVictimException"/>; in the latter case
-    /// every lock of this session has already been released (victim rollback) so the other sessions can progress.
-    /// </summary>
     public async Task<LockHandle> AcquireAsync(string resource, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
 
-        // Fast path: re-entrant acquisition inside the same session never touches the store.
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -90,7 +77,7 @@ public sealed class LockSession : IAsyncDisposable
         }
         catch (DistributedLockException ex) when (ex is DeadlockVictimException or LockLostException)
         {
-            // Victim rollback: free everything we hold so the rest of the cycle can make progress.
+            
             await ReleaseAllAsync();
             throw;
         }
@@ -112,10 +99,6 @@ public sealed class LockSession : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Deadlock <em>prevention</em>: acquires all resources in a global (ordinal) order. Two sessions using this method can
-    /// never form a wait-for cycle, whatever order the caller lists the resources in.
-    /// </summary>
     public async Task<IReadOnlyList<LockHandle>> AcquireOrderedAsync(IEnumerable<string> resources, CancellationToken cancellationToken = default)
     {
         var ordered = resources.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
@@ -140,7 +123,6 @@ public sealed class LockSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Throws <see cref="LockLostException"/> if any lock of this session was lost. Call before committing.</summary>
     public void EnsureLocksHeld()
     {
         if (_lockLost.IsCancellationRequested)
@@ -149,10 +131,6 @@ public sealed class LockSession : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Verifies against the store that every lock of this session is still owned by it. Call right before committing
-    /// side effects; this also catches leases that silently expired while the watchdog was disabled.
-    /// </summary>
     public async Task EnsureLocksHeldAsync(CancellationToken cancellationToken = default)
     {
         EnsureLocksHeld();
@@ -175,12 +153,12 @@ public sealed class LockSession : IAsyncDisposable
         {
             if (!_held.TryGetValue(resource, out var held))
             {
-                return; // already released (e.g. victim rollback)
+                return; 
             }
 
             if (--held.Count > 0)
             {
-                return; // still held by an outer (re-entrant) handle
+                return; 
             }
 
             _held.Remove(resource);
@@ -227,7 +205,7 @@ public sealed class LockSession : IAsyncDisposable
         }
         catch
         {
-            // Best effort: the lease TTL guarantees the lock disappears anyway because the watchdog stopped renewing it.
+            
         }
     }
 
@@ -259,7 +237,7 @@ public sealed class LockSession : IAsyncDisposable
         }
         catch
         {
-            // advisory metadata; cleaned up by the reclaimer if this fails
+            
         }
     }
 

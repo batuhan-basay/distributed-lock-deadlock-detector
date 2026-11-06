@@ -2,7 +2,6 @@ using LockGuard.Domain.Deadlocks;
 
 namespace LockGuard.Domain.Events;
 
-/// <summary>Audit record written by the detector / reclaimer (the "resolution report").</summary>
 public sealed record LockEventReport(
     string Id,
     LockEventKind Kind,

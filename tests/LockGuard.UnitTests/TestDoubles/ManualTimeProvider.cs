@@ -1,6 +1,5 @@
 namespace LockGuard.UnitTests.TestDoubles;
 
-/// <summary>Deterministic clock for watchdog / reclaimer tests.</summary>
 internal sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
 {
     private DateTimeOffset _now = start;

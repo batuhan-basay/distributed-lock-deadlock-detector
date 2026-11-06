@@ -8,10 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LockGuard.Infrastructure.BackgroundJobs;
 
-/// <summary>
-/// Sends a MediatR command periodically, but only while this instance holds the leader lease for its role. Every tick
-/// runs in its own DI scope, like an HTTP request would.
-/// </summary>
 public abstract partial class LeaderElectedLoopService : BackgroundService
 {
     private readonly LeaderElection _election;
@@ -46,7 +42,6 @@ public abstract partial class LeaderElectedLoopService : BackgroundService
 
     public string Role => _role;
 
-    /// <summary>The command sent on every tick while leader.</summary>
     protected abstract Task SendAsync(ISender sender, CancellationToken cancellationToken);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -13,14 +13,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Application.Locking;
 
-/// <summary>
-/// Default <see cref="IDistributedLockManager"/>. It owns the acquisition loop:
-/// <list type="number">
-///   <item>try to acquire on the store (Redlock quorum);</item>
-///   <item>on contention, publish a <see cref="WaitRecord"/> (edge of the Wait-For Graph) and check for an abort signal;</item>
-///   <item>back off exponentially with jitter until the wait timeout expires.</item>
-/// </list>
-/// </summary>
 public sealed partial class DistributedLockManager : IDistributedLockManager
 {
     private readonly ILockStore _store;
@@ -69,14 +61,12 @@ public sealed partial class DistributedLockManager : IDistributedLockManager
             options.Priority,
             _time.GetUtcNow());
 
-        // A previous incarnation of an idempotent session may have been aborted; start clean.
         await _coordination.ClearAbortSignalAsync(sessionId, cancellationToken);
         await _coordination.RegisterSessionAsync(info, cancellationToken);
 
         return new LockSession(this, info, options);
     }
 
-    /// <summary>The acquisition loop. Re-entrancy inside a session is handled by <see cref="LockSession"/> before we get here.</summary>
     internal async Task<AcquireResult> AcquireCoreAsync(LockSession session, string resource, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
@@ -116,7 +106,6 @@ public sealed partial class DistributedLockManager : IDistributedLockManager
                     return result;
                 }
 
-                // ---- contended ---------------------------------------------------------------
                 holder = result.CurrentHolderSessionId;
                 _telemetry.ContentionEvents.Add(1, group);
 
@@ -128,12 +117,10 @@ public sealed partial class DistributedLockManager : IDistributedLockManager
                     LogContended(session.SessionId, resource, holder);
                 }
 
-                // Publish/refresh our edge in the Wait-For Graph: session --waits for--> resource (held by holder).
                 await _coordination.RecordWaitAsync(
                     new WaitRecord(session.SessionId, resource, holder, _options.ServiceName, _options.InstanceId, waitingSince, now),
                     cancellationToken);
 
-                // Did the detector choose us as a deadlock victim?
                 var abort = await _coordination.GetAbortSignalAsync(session.SessionId, cancellationToken);
                 if (abort is not null)
                 {
@@ -175,14 +162,13 @@ public sealed partial class DistributedLockManager : IDistributedLockManager
                 }
                 catch (Exception ex)
                 {
-                    // Advisory data only: a leftover wait record expires through WaitRecordStaleAfter.
+                    
                     LogClearWaitFailed(ex, session.SessionId);
                 }
             }
         }
     }
 
-    /// <summary>Exponential backoff with "equal jitter": half deterministic, half random.</summary>
     private TimeSpan NextDelay(int attempt)
     {
         var initial = _options.Acquisition.InitialRetryDelay.TotalMilliseconds;

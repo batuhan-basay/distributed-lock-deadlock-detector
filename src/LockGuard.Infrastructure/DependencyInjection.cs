@@ -10,17 +10,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LockGuard.Infrastructure;
 
-/// <summary>Infrastructure layer registration (C# 14 extension members).</summary>
 public static class DependencyInjection
 {
     public const string StoreKey = "LockGuard:Store";
 
     extension(IServiceCollection services)
     {
-        /// <summary>
-        /// Binds <see cref="LockGuardOptions"/> from configuration, picks the persistence adapter
-        /// (<c>LockGuard:Store</c> = <c>Redis</c> (default) | <c>InMemory</c>), registers the background jobs and OpenTelemetry.
-        /// </summary>
+        
         public IServiceCollection AddInfrastructure(IConfiguration configuration, string defaultServiceName)
         {
             services.AddOptions<LockGuardOptions>().Bind(configuration.GetSection(LockGuardOptions.SectionName));
@@ -45,7 +41,6 @@ public static class DependencyInjection
             return services;
         }
 
-        /// <summary>Redlock over the independent Redis nodes configured under <c>LockGuard:Redis</c>.</summary>
         public IServiceCollection AddRedisPersistence(IConfiguration configuration)
         {
             services.AddOptions<RedisOptions>().Bind(configuration.GetSection(RedisOptions.SectionName));
@@ -55,7 +50,6 @@ public static class DependencyInjection
             return services;
         }
 
-        /// <summary>Single-process stores (no Redis): local development and tests.</summary>
         public IServiceCollection AddInMemoryPersistence()
         {
             services.TryAddSingleton(TimeProvider.System);
@@ -66,7 +60,6 @@ public static class DependencyInjection
             return services;
         }
 
-        /// <summary>Heartbeat, watchdog loop and the leader-elected detector / reclaimer loops.</summary>
         public IServiceCollection AddLockGuardBackgroundJobs()
         {
             services.AddHostedService<InstanceHeartbeatService>();

@@ -20,7 +20,6 @@ public class WatchdogTests
         await using var session = await host.Manager.BeginSessionAsync();
         await using var handle = await session.AcquireAsync("report:monthly");
 
-        // 30 seconds of "work" with a 3 second lease.
         var renewed = 0;
         for (var i = 0; i < 30; i++)
         {
@@ -58,9 +57,9 @@ public class WatchdogTests
         await using var session = await host.Manager.BeginSessionAsync(new() { DisableWatchdog = true });
         await using var handle = await session.AcquireAsync("report:daily");
 
-        await session.EnsureLocksHeldAsync(); // still fine
+        await session.EnsureLocksHeldAsync(); 
 
-        time.Advance(TimeSpan.FromSeconds(4)); // work took longer than the 3s lease
+        time.Advance(TimeSpan.FromSeconds(4)); 
         await Assert.ThrowsAsync<LockLostException>(() => session.EnsureLocksHeldAsync());
         Assert.True(session.LockLost.IsCancellationRequested);
     }
@@ -73,7 +72,6 @@ public class WatchdogTests
         await using var session = await host.Manager.BeginSessionAsync();
         await using var handle = await session.AcquireAsync("payment:7");
 
-        // Someone (e.g. the reclaimer) force-releases the lock behind the session's back.
         Assert.True(await host.Store.ReleaseAsync("payment:7", session.SessionId));
 
         time.Advance(TimeSpan.FromSeconds(1.1));

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Diagnostics;
 
 namespace LockGuard.Api.ExceptionHandling;
 
-/// <summary>Turns a <see cref="ValidationException"/> thrown by the MediatR validation pipeline into HTTP 400 problem details.</summary>
 public sealed class ValidationExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)

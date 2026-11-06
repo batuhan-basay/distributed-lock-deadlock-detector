@@ -39,7 +39,7 @@ public sealed class RunReentrantScenarioCommandHandler(IDistributedLockManager l
         }
         finally
         {
-            // Release inner-most first, like nested `using` blocks would.
+            
             for (var i = handles.Count - 1; i >= 0; i--)
             {
                 await handles[i].DisposeAsync();

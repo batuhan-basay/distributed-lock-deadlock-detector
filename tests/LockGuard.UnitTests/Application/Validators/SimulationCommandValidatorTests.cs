@@ -20,9 +20,9 @@ public class SimulationCommandValidatorTests
     }
 
     [Theory]
-    [InlineData("account:A", "account:A", 100, 0, null, "SecondResource")]       // nothing to deadlock on
+    [InlineData("account:A", "account:A", 100, 0, null, "SecondResource")]       
     [InlineData("", "account:B", 100, 0, null, "FirstResource")]
-    [InlineData("lockguard:leader:x", "account:B", 100, 0, null, "FirstResource")] // internal resource
+    [InlineData("lockguard:leader:x", "account:B", 100, 0, null, "FirstResource")] 
     [InlineData("account:A", "account:B", 60_000, 0, null, "HoldMs")]
     [InlineData("account:A", "account:B", 100, 9, null, "MaxRetries")]
     [InlineData("account:A", "account:B", 100, 0, "has spaces", "SessionId")]

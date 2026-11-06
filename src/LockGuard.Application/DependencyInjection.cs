@@ -14,15 +14,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LockGuard.Application;
 
-/// <summary>Application layer registration (C# 14 extension members).</summary>
 public static class DependencyInjection
 {
     extension(IServiceCollection services)
     {
-        /// <summary>
-        /// Registers MediatR (handlers + validation / logging pipeline), the FluentValidation validators and the
-        /// application services. Persistence ports (<c>ILockStore</c>, <c>ICoordinationStore</c>) come from Infrastructure.
-        /// </summary>
+        
         public IServiceCollection AddApplication(Action<LockGuardOptions>? configure = null)
         {
             var assembly = typeof(DependencyInjection).Assembly;
@@ -46,7 +42,7 @@ public static class DependencyInjection
             services.TryAddSingleton<IDeadlockVictimSelector, DefaultDeadlockVictimSelector>();
             services.TryAddSingleton<LockWatchdog>();
             services.TryAddSingleton<IDistributedLockManager, DistributedLockManager>();
-            services.TryAddSingleton<DeadlockDetector>();   // stateful (tracks cycles across scans): one per process
+            services.TryAddSingleton<DeadlockDetector>();   
             services.TryAddSingleton<OrphanedLockReclaimer>();
 
             return services;

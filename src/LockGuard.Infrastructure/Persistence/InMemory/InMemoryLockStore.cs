@@ -3,10 +3,6 @@ using LockGuard.Domain.Locks;
 
 namespace LockGuard.Infrastructure.Persistence.InMemory;
 
-/// <summary>
-/// Single-process <see cref="ILockStore"/> with the exact semantics of the Redis implementation (TTL, compare-and-set,
-/// idempotent re-acquisition, fencing tokens). Used by unit tests and for running the API without Redis.
-/// </summary>
 public sealed class InMemoryLockStore(TimeProvider time) : ILockStore
 {
     private readonly Lock _sync = new();
@@ -33,7 +29,7 @@ public sealed class InMemoryLockStore(TimeProvider time) : ILockStore
 
             if (string.Equals(entry.Owner.SessionId, owner.SessionId, StringComparison.Ordinal))
             {
-                // Same semantics as acquire.lua: keep acquisition time + fencing token, adopt the (possibly new) instance.
+                
                 entry.Owner = owner;
                 entry.ExpiresAt = now + ttl;
                 return Task.FromResult(new AcquireResult(AcquireStatus.AlreadyOwned, entry.Fence, owner.SessionId, ttl));
@@ -102,7 +98,6 @@ public sealed class InMemoryLockStore(TimeProvider time) : ILockStore
         }
     }
 
-    /// <summary>Test helper: writes a lock "behind the manager's back", e.g. a lock left by a crashed process or without TTL.</summary>
     public void Seed(string resource, LockOwner owner, DateTimeOffset acquiredAt, TimeSpan? ttl)
     {
         lock (_sync)

@@ -31,5 +31,4 @@ app.MapGet("/", () => Results.Redirect("/api/locks/wait-graph")).ExcludeFromDesc
 
 app.Run();
 
-/// <summary>Exposed for WebApplicationFactory-based tests.</summary>
 public partial class Program;

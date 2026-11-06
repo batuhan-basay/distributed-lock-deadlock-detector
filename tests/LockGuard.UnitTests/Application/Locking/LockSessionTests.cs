@@ -25,7 +25,7 @@ public class LockSessionTests
 
         await inner.DisposeAsync();
         await middle.DisposeAsync();
-        Assert.NotNull(await host.Store.GetAsync("order:1")); // still held by the outer handle
+        Assert.NotNull(await host.Store.GetAsync("order:1")); 
 
         await outer.DisposeAsync();
         Assert.Null(await host.Store.GetAsync("order:1"));
@@ -50,8 +50,7 @@ public class LockSessionTests
     [Fact]
     public async Task Same_session_id_on_another_instance_is_idempotent_and_does_not_block_itself()
     {
-        // Two "processes" sharing the same stores. A client retries a request (same idempotency key) and the retry lands
-        // on another instance while the original still holds the lock.
+        
         await using var instance1 = new LockGuardTestHost(instanceId: "api-1");
         await using var instance2 = new LockGuardTestHost(sharedStore: instance1.Store, sharedCoordination: instance1.Coordination, instanceId: "api-2");
 
@@ -66,7 +65,7 @@ public class LockSessionTests
 
         var info = await instance1.Store.GetAsync("payment:42");
         Assert.NotNull(info);
-        Assert.Equal("api-2", info.InstanceId); // ownership adopted by the live instance
+        Assert.Equal("api-2", info.InstanceId); 
     }
 
     [Fact]
@@ -84,7 +83,6 @@ public class LockSessionTests
                 await using var session = await host.Manager.BeginSessionAsync();
                 await using var handle = await session.AcquireAsync("counter");
 
-                // Deliberately non-atomic read-modify-write: only correct if the lock really excludes everyone else.
                 var read = counter;
                 await Task.Yield();
                 counter = read + 1;
@@ -163,7 +161,6 @@ public class LockSessionTests
             }
         }
 
-        // Opposite request orders, many times, concurrently. No detector is running: a deadlock would time out.
         await Task.WhenAll(Enumerable.Range(0, 10).SelectMany(_ => new[] { Transfer("account:A", "account:B"), Transfer("account:B", "account:A") }));
     }
 

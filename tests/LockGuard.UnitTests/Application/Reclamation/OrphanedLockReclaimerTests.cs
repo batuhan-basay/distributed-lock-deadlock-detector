@@ -23,7 +23,7 @@ public class OrphanedLockReclaimerTests
         await host.Coordination.HeartbeatAsync("api-1", time.GetUtcNow());
         host.Store.Seed("payment:1", new LockOwner("s-dead", "api", "api-1"), time.GetUtcNow(), TimeSpan.FromMinutes(10));
 
-        time.Advance(TimeSpan.FromSeconds(15)); // api-1 stops sending heartbeats (crash)
+        time.Advance(TimeSpan.FromSeconds(15)); 
         var reports = await host.Reclaimer.ScanAsync();
 
         var report = Assert.Single(reports);
@@ -43,7 +43,7 @@ public class OrphanedLockReclaimerTests
         await using var host = CreateHost(time);
         host.Store.Seed("payment:2", new LockOwner("s-ghost", "api", "crashed-xyz"), time.GetUtcNow(), TimeSpan.FromMinutes(10));
 
-        Assert.Empty(await host.Reclaimer.ScanAsync()); // too young: grace period protects fresh locks
+        Assert.Empty(await host.Reclaimer.ScanAsync()); 
 
         time.Advance(TimeSpan.FromSeconds(4));
         var report = Assert.Single(await host.Reclaimer.ScanAsync());
@@ -87,7 +87,7 @@ public class OrphanedLockReclaimerTests
         host.Store.Seed("report:1", new LockOwner("s-zombie", "worker", "worker-1"), acquiredAt, TimeSpan.FromMinutes(30));
 
         time.Advance(TimeSpan.FromMinutes(6));
-        await host.Coordination.HeartbeatAsync("worker-1", time.GetUtcNow()); // process alive, but stuck holding the lock
+        await host.Coordination.HeartbeatAsync("worker-1", time.GetUtcNow()); 
 
         var report = Assert.Single(await host.Reclaimer.ScanAsync());
         Assert.Equal("max_hold_time_exceeded", report.Reason);
@@ -111,7 +111,6 @@ public class OrphanedLockReclaimerTests
         await using var host = CreateHost(time);
         var stale = new LockInfo("res", "s-old", "api", "dead", time.GetUtcNow(), TimeSpan.FromMinutes(1), 1);
 
-        // Between the scan and the release the stale lock expired and a healthy session re-acquired the resource.
         host.Store.Seed("res", new LockOwner("s-new", "api", "alive"), time.GetUtcNow(), TimeSpan.FromMinutes(1));
 
         Assert.False(await host.Store.ReleaseAsync(stale.Resource, stale.SessionId));

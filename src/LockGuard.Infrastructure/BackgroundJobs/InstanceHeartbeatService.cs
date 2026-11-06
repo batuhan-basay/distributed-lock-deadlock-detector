@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 
 namespace LockGuard.Infrastructure.BackgroundJobs;
 
-/// <summary>Publishes this process' liveness. The reclaimer treats locks of instances without a fresh heartbeat as orphaned.</summary>
 public sealed partial class InstanceHeartbeatService(
     ICoordinationStore coordination,
     TimeProvider time,
@@ -17,7 +16,7 @@ public sealed partial class InstanceHeartbeatService(
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        // First heartbeat before the app starts serving requests, so no lock is ever taken by an "unknown" instance.
+        
         await coordination.HeartbeatAsync(_options.InstanceId, time.GetUtcNow(), cancellationToken);
         LogStarted(_options.InstanceId);
         await base.StartAsync(cancellationToken);
@@ -54,7 +53,7 @@ public sealed partial class InstanceHeartbeatService(
         }
         catch
         {
-            // best effort on shutdown
+            
         }
     }
 

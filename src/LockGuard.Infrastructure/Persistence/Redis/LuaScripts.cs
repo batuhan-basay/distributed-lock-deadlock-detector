@@ -2,7 +2,6 @@ using System.Reflection;
 
 namespace LockGuard.Infrastructure.Persistence.Redis;
 
-/// <summary>Lua scripts shipped as embedded resources (see <c>Scripts/*.lua</c>).</summary>
 internal static class LuaScripts
 {
     public static readonly string Acquire = Load("acquire");

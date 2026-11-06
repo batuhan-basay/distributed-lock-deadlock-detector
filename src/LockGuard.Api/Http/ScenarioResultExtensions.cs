@@ -2,7 +2,6 @@ using LockGuard.Application.Features.Simulations.Common;
 
 namespace LockGuard.Api.Http;
 
-/// <summary>Maps the business outcome of a simulation to an HTTP status code.</summary>
 public static class ScenarioResultExtensions
 {
     public static IResult ToHttpResult<TResponse>(this TResponse response)
