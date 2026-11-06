@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Authors>Batuhan Başay</Authors>
+    <Product>LockGuard - Distributed Lock Deadlock Detector</Product>
+    <RepositoryUrl>https://github.com/batuhan-basay/distributed-lock-deadlock-detector</RepositoryUrl>
+    <NoWarn>$(NoWarn);CA1848;CA1716;CA1711;CA2007;CA1031;CA1873;CA1708</NoWarn>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,55 @@
+### LockGuard - manual requests (VS Code REST Client / JetBrains HTTP Client)
+@api1 = http://localhost:8081
+@api2 = http://localhost:8082
+
+### 1) Deadlock: send A and B within the same ~1.5 s window (A on api-1, B on api-2)
+POST {{api1}}/api/test/deadlock-scenario-a?holdMs=1500
+
+###
+POST {{api2}}/api/test/deadlock-scenario-b?holdMs=1500
+
+### 1b) Same race, but the victim retries the unit of work (both end up 200)
+POST {{api1}}/api/test/deadlock-scenario-a?maxRetries=2
+
+###
+POST {{api2}}/api/test/deadlock-scenario-b?maxRetries=2
+
+### 2) Prevention: opposite order requested, global lock ordering applied -> never deadlocks
+POST {{api1}}/api/test/deadlock-scenario-safe?first=account:B&second=account:A
+
+### 3) Three-party cycle inside one process
+POST {{api1}}/api/test/three-way-deadlock
+
+### 4) Orphaned lock of a "crashed" process (600 s TTL) -> reclaimed after a few seconds
+POST {{api1}}/api/test/crash-simulation?resource=payment:tx-1001&ttlSeconds=600
+
+### 5) Watchdog: 20 s of work on a 3 s lease
+POST {{api1}}/api/test/long-running?workMs=20000&leaseMs=3000
+
+### 5b) Same without watchdog -> lock_lost (lease expired mid-work, caught before commit)
+POST {{api1}}/api/test/long-running?workMs=6000&leaseMs=2000&disableWatchdog=true
+
+### 6) Re-entrancy + idempotent session id
+POST {{api1}}/api/test/reentrant?resource=order:42&depth=3
+X-Lock-Session-Id: order-42-request-1
+
+### 7) Contention on a hot key
+POST {{api2}}/api/test/contention?resource=inventory:sku-42&workMs=25
+
+### Diagnostics
+GET {{api1}}/api/locks
+
+###
+GET {{api1}}/api/locks/wait-graph
+
+###
+GET {{api1}}/api/locks/events?count=20
+
+###
+GET {{api1}}/api/locks/events?kind=DeadlockDetected
+
+###
+GET {{api1}}/api/locks/instances
+
+###
+GET {{api1}}/metrics

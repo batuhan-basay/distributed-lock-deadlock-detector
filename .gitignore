@@ -1,0 +1,21 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+.idea/
+*.swp
+TestResults/
+coverage*/
+*.trx
+artifacts/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## k6 output
+*-summary.json

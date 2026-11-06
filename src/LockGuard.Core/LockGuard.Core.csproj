@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LockGuard.Core</RootNamespace>
+    <Description>Store-agnostic distributed lock manager with watchdog lease extension, re-entrant sessions, wait-for-graph deadlock detection and orphaned lock reclamation.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, Options, Logging abstractions come from the shared framework: no extra NuGet packages needed. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LockGuard.Core.Tests" />
+  </ItemGroup>
+
+</Project>

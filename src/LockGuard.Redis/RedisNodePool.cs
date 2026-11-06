@@ -1,0 +1,80 @@
+using System.Reflection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
+
+namespace LockGuard.Redis;
+
+/// <summary>One <see cref="ConnectionMultiplexer"/> per independent Redis master + the embedded Lua scripts.</summary>
+public sealed partial class RedisNodePool : IDisposable
+{
+    private readonly ILogger<RedisNodePool> _logger;
+
+    public RedisNodePool(IOptions<RedisLockGuardOptions> options, ILogger<RedisNodePool> logger)
+    {
+        _logger = logger;
+        Options = options.Value;
+        if (Options.Endpoints.Length == 0)
+        {
+            throw new InvalidOperationException("LockGuard:Redis:Endpoints must contain at least one Redis endpoint.");
+        }
+
+        Nodes = [.. Options.Endpoints.Select(Connect)];
+        Quorum = (Nodes.Count / 2) + 1;
+        LogConnected(Nodes.Count, Quorum);
+    }
+
+    public RedisLockGuardOptions Options { get; }
+
+    public IReadOnlyList<IConnectionMultiplexer> Nodes { get; }
+
+    /// <summary>N/2 + 1.</summary>
+    public int Quorum { get; }
+
+    public IDatabase CoordinationDatabase =>
+        Nodes[Math.Clamp(Options.CoordinationNodeIndex, 0, Nodes.Count - 1)].GetDatabase();
+
+    private IConnectionMultiplexer Connect(string endpoint)
+    {
+        var config = ConfigurationOptions.Parse(
+            string.IsNullOrWhiteSpace(Options.ConnectionOptions) ? endpoint : $"{endpoint},{Options.ConnectionOptions}");
+
+        // Keep retrying in the background: a node that is down must not prevent the app from starting
+        // (Redlock tolerates a minority of failed nodes).
+        config.AbortOnConnectFail = false;
+        config.ConnectTimeout = 2000;
+        config.SyncTimeout = 2000;
+        config.AsyncTimeout = 2000;
+        config.ClientName = "lockguard";
+        return ConnectionMultiplexer.Connect(config);
+    }
+
+    public void Dispose()
+    {
+        foreach (var node in Nodes)
+        {
+            node.Dispose();
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Redlock pool created with {Nodes} independent Redis node(s); quorum = {Quorum}")]
+    private partial void LogConnected(int nodes, int quorum);
+}
+
+/// <summary>Lua scripts shipped as embedded resources (see <c>Scripts/*.lua</c>).</summary>
+internal static class LuaScripts
+{
+    public static readonly string Acquire = Load("acquire");
+    public static readonly string Extend = Load("extend");
+    public static readonly string Release = Load("release");
+    public static readonly string Inspect = Load("inspect");
+
+    private static string Load(string name)
+    {
+        var resource = $"LockGuard.Redis.Scripts.{name}.lua";
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)
+            ?? throw new InvalidOperationException($"Embedded Lua script '{resource}' not found.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+}

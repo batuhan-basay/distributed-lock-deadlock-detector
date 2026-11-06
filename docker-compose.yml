@@ -1,0 +1,123 @@
+name: lockguard
+
+# Topology
+#   redis-1/2/3   three INDEPENDENT Redis masters (no replication between them) -> Redlock quorum = 2
+#   api-1/api-2   two replicas of the Web API (simulation + diagnostics endpoints)
+#   detector      background worker: deadlock detector + orphaned lock reclaimer (leader-elected, scalable)
+#   prometheus    scrapes /metrics of every .NET process
+#   grafana       pre-provisioned "LockGuard" dashboard  (http://localhost:3000, anonymous viewer)
+
+x-redis-node: &redis-node
+  image: redis:7.4-alpine
+  # Redlock guidance: persistence with fsync, so a restarted node does not "forget" granted locks.
+  command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", ""]
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+  restart: unless-stopped
+
+x-lockguard-env: &lockguard-env
+  ASPNETCORE_ENVIRONMENT: Production
+  LockGuard__Store: Redis
+  LockGuard__Redis__Endpoints__0: redis-1:6379
+  LockGuard__Redis__Endpoints__1: redis-2:6379
+  LockGuard__Redis__Endpoints__2: redis-3:6379
+
+x-depends-on-redis: &depends-on-redis
+  redis-1: { condition: service_healthy }
+  redis-2: { condition: service_healthy }
+  redis-3: { condition: service_healthy }
+
+services:
+  redis-1:
+    <<: *redis-node
+    container_name: lockguard-redis-1
+    ports: ["6379:6379"]
+    volumes: ["redis-1-data:/data"]
+
+  redis-2:
+    <<: *redis-node
+    container_name: lockguard-redis-2
+    ports: ["6380:6379"]
+    volumes: ["redis-2-data:/data"]
+
+  redis-3:
+    <<: *redis-node
+    container_name: lockguard-redis-3
+    ports: ["6381:6379"]
+    volumes: ["redis-3-data:/data"]
+
+  api-1:
+    build:
+      context: .
+      args: { PROJECT: LockGuard.Api }
+    image: lockguard-api:local
+    container_name: lockguard-api-1
+    environment:
+      <<: *lockguard-env
+      LockGuard__ServiceName: lockguard-api
+      LockGuard__InstanceId: api-1
+    ports: ["8081:8080"]
+    depends_on: *depends-on-redis
+    restart: unless-stopped
+
+  api-2:
+    image: lockguard-api:local
+    container_name: lockguard-api-2
+    environment:
+      <<: *lockguard-env
+      LockGuard__ServiceName: lockguard-api
+      LockGuard__InstanceId: api-2
+    ports: ["8082:8080"]
+    depends_on:
+      <<: *depends-on-redis
+      api-1: { condition: service_started }   # reuses the image built for api-1
+    restart: unless-stopped
+
+  detector:
+    build:
+      context: .
+      args: { PROJECT: LockGuard.Detector }
+    image: lockguard-detector:local
+    environment:
+      <<: *lockguard-env
+      LockGuard__ServiceName: lockguard-detector
+    # No host port: scale it out with `docker compose up -d --scale detector=2` to watch leader election / failover.
+    expose: ["8080"]
+    depends_on: *depends-on-redis
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: lockguard-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    depends_on: [api-1, api-2, detector]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: lockguard-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/lockguard.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+volumes:
+  redis-1-data:
+  redis-2-data:
+  redis-3-data:

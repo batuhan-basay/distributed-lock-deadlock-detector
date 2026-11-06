@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LockGuard.Redis</RootNamespace>
+    <Description>Redlock (multi-master quorum) lock store and Redis coordination store for LockGuard.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LockGuard.Core\LockGuard.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\*.lua" LogicalName="LockGuard.Redis.Scripts.%(Filename).lua" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/.idea
+**/TestResults
+.git
+deploy
+loadtest
+docs
+*.md
