@@ -9,8 +9,9 @@ WORKDIR /src
 
 # Restore first (layer cached until a project file changes).
 COPY global.json Directory.Build.props Directory.Packages.props ./
-COPY src/LockGuard.Core/LockGuard.Core.csproj src/LockGuard.Core/
-COPY src/LockGuard.Redis/LockGuard.Redis.csproj src/LockGuard.Redis/
+COPY src/LockGuard.Domain/LockGuard.Domain.csproj src/LockGuard.Domain/
+COPY src/LockGuard.Application/LockGuard.Application.csproj src/LockGuard.Application/
+COPY src/LockGuard.Infrastructure/LockGuard.Infrastructure.csproj src/LockGuard.Infrastructure/
 COPY src/LockGuard.Api/LockGuard.Api.csproj src/LockGuard.Api/
 COPY src/LockGuard.Detector/LockGuard.Detector.csproj src/LockGuard.Detector/
 RUN dotnet restore src/${PROJECT}/${PROJECT}.csproj

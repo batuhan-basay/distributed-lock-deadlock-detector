@@ -4,6 +4,7 @@
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
 ![C# 14](https://img.shields.io/badge/C%23-14-239120)
 ![Redis Redlock](https://img.shields.io/badge/Redis-Redlock-DC382D)
+![Clean Architecture](https://img.shields.io/badge/Clean%20Architecture-CQRS%20%2B%20MediatR-6C63FF)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Prometheus%20%2B%20Grafana-F46800)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
@@ -21,6 +22,7 @@ microservices.
 - [The problem](#the-problem)
 - [What LockGuard does](#what-lockguard-does)
 - [Architecture](#architecture)
+- [Clean Architecture and CQRS (MediatR)](#clean-architecture-and-cqrs-mediatr)
 - [Redlock, TTL and the lock watchdog](#redlock-ttl-and-the-lock-watchdog)
 - [Re-entrant and idempotent acquisition](#re-entrant-and-idempotent-acquisition)
 - [Deadlock detection: the Wait-For Graph](#deadlock-detection-the-wait-for-graph)
@@ -52,16 +54,17 @@ it fails in four classic ways:
 
 | Capability | Where |
 |---|---|
-| **Redlock** over N independent Redis masters (quorum `N/2+1`, clock-drift aware validity) | [`RedlockLockStore`](src/LockGuard.Redis/RedlockLockStore.cs), [Lua scripts](src/LockGuard.Redis/Scripts) |
-| **Lock watchdog**: short TTL + automatic lease extension while the work runs; lost-lease notification | [`LockWatchdog`](src/LockGuard.Core/Watchdog/LockWatchdog.cs) |
-| **Re-entrant, idempotent sessions**: same session re-enters its locks; a retried request with the same idempotency key adopts its lock instead of deadlocking on itself | [`LockSession`](src/LockGuard.Core/Locking/LockSession.cs), [`acquire.lua`](src/LockGuard.Redis/Scripts/acquire.lua) |
+| **Redlock** over N independent Redis masters (quorum `N/2+1`, clock-drift aware validity) | [`RedlockLockStore`](src/LockGuard.Infrastructure/Persistence/Redis/RedlockLockStore.cs), [Lua scripts](src/LockGuard.Infrastructure/Persistence/Redis/Scripts) |
+| **Lock watchdog**: short TTL + automatic lease extension while the work runs; lost-lease notification | [`LockWatchdog`](src/LockGuard.Application/Locking/Watchdog/LockWatchdog.cs) |
+| **Re-entrant, idempotent sessions**: same session re-enters its locks; a retried request with the same idempotency key adopts its lock instead of deadlocking on itself | [`LockSession`](src/LockGuard.Application/Locking/LockSession.cs), [`acquire.lua`](src/LockGuard.Infrastructure/Persistence/Redis/Scripts/acquire.lua) |
 | **Fencing tokens** on every fresh acquisition | `LockHandle.FencingToken` |
-| **Wait-For Graph deadlock detector** (Tarjan SCC), phantom-deadlock guard, victim selection, cooperative abort + forced fallback | [`WaitForGraph`](src/LockGuard.Core/Detection/WaitForGraph.cs), [`DeadlockDetector`](src/LockGuard.Core/Detection/DeadlockDetector.cs) |
+| **Wait-For Graph deadlock detector** (Tarjan SCC), phantom-deadlock guard, victim selection, cooperative abort + forced fallback | [`WaitForGraph`](src/LockGuard.Domain/Deadlocks/WaitForGraph.cs), [`DeadlockDetector`](src/LockGuard.Application/Detection/DeadlockDetector.cs) |
 | **Deadlock prevention** with global lock ordering | `LockSession.AcquireOrderedAsync` |
-| **Orphaned lock reclaimer**: crashed instance, never-seen instance, no-expiry key, zombie hold time | [`OrphanedLockReclaimer`](src/LockGuard.Core/Reclaim/OrphanedLockReclaimer.cs) |
-| **Leader election** for the detector / reclaimer (built on the lock store itself) | [`LeaderElection`](src/LockGuard.Core/Coordination/LeaderElection.cs) |
-| **Observability**: OpenTelemetry metrics + traces, Prometheus scrape endpoint, provisioned Grafana dashboard | [`LockGuardTelemetry`](src/LockGuard.Core/Diagnostics/LockGuardTelemetry.cs), [`deploy/`](deploy) |
-| **Simulation API**: deadlock scenarios A/B, three-way cycle, crash, watchdog, contention | [`SimulationEndpoints`](src/LockGuard.Api/Endpoints/SimulationEndpoints.cs) |
+| **Orphaned lock reclaimer**: crashed instance, never-seen instance, no-expiry key, zombie hold time | [`StaleLockPolicy`](src/LockGuard.Domain/Reclamation/StaleLockPolicy.cs), [`OrphanedLockReclaimer`](src/LockGuard.Application/Reclamation/OrphanedLockReclaimer.cs) |
+| **Leader election** for the detector / reclaimer (built on the lock store itself) | [`LeaderElection`](src/LockGuard.Application/Coordination/LeaderElection.cs) |
+| **Observability**: OpenTelemetry metrics + traces, Prometheus scrape endpoint, provisioned Grafana dashboard | [`LockGuardTelemetry`](src/LockGuard.Application/Common/Telemetry/LockGuardTelemetry.cs), [`deploy/`](deploy) |
+| **Simulation API**: deadlock scenarios A/B, three-way cycle, crash, watchdog, contention – each one a MediatR command | [`Features/Simulations`](src/LockGuard.Application/Features/Simulations), [`SimulationEndpoints`](src/LockGuard.Api/Endpoints/SimulationEndpoints.cs) |
+| **Clean Architecture + CQRS**: Domain / Application / Infrastructure / Presentation, MediatR commands & queries, FluentValidation pipeline | [see below](#clean-architecture-and-cqrs-mediatr) |
 
 ## Architecture
 
@@ -73,8 +76,8 @@ flowchart LR
 
     subgraph API["LockGuard.Api - 2 replicas"]
         direction TB
-        EP["Simulation and diagnostics endpoints"]
-        LM["DistributedLockManager<br/>LockSession: re-entrant, idempotent"]
+        EP["Minimal API endpoints<br/>ISender.Send(command / query)"]
+        LM["MediatR handlers<br/>DistributedLockManager / LockSession"]
         WD["LockWatchdog<br/>lease auto-extension"]
         HB1["InstanceHeartbeat"]
         EP --> LM
@@ -89,8 +92,8 @@ flowchart LR
 
     subgraph Worker["LockGuard.Detector - leader elected"]
         direction TB
-        DD["DeadlockDetector<br/>Wait-For Graph, Tarjan SCC"]
-        OR["OrphanedLockReclaimer"]
+        DD["ScanDeadlocksCommand<br/>DeadlockDetector: WFG, Tarjan SCC"]
+        OR["ReclaimStaleLocksCommand<br/>OrphanedLockReclaimer"]
     end
 
     subgraph Obs["Observability"]
@@ -130,6 +133,91 @@ flowchart LR
 | `lg:abort:{session}` | STRING + TTL | abort signal for a deadlock victim / reclaimed lock owner |
 | `lg:events` | LIST (capped) | detection / resolution / reclamation reports |
 
+## Clean Architecture and CQRS (MediatR)
+
+The solution is split into four layers; dependencies only point inwards.
+
+```mermaid
+flowchart TB
+    subgraph Presentation
+        API["LockGuard.Api<br/>Minimal API endpoints, exception handlers"]
+        DET["LockGuard.Detector<br/>worker host"]
+    end
+    INF["LockGuard.Infrastructure<br/>Redlock + Redis, in-memory stores,<br/>background jobs, OpenTelemetry"]
+    APP["LockGuard.Application<br/>commands / queries / handlers / validators,<br/>lock manager, watchdog, detector, reclaimer, ports"]
+    DOM["LockGuard.Domain<br/>locks, sessions, Wait-For Graph,<br/>victim selection, stale-lock policy, exceptions"]
+    API --> APP
+    API --> INF
+    DET --> APP
+    DET --> INF
+    INF --> APP
+    APP --> DOM
+```
+
+| Layer | Contains | Depends on |
+|---|---|---|
+| **Domain** | Entities / value objects (`LockOwner`, `LockInfo`, `SessionInfo`, `WaitRecord`), the pure algorithms (`WaitForGraph` with Tarjan SCC, `DefaultDeadlockVictimSelector`, `StaleLockPolicy`) and domain exceptions | nothing (no NuGet packages) |
+| **Application** | Ports (`ILockStore`, `ICoordinationStore`), application services (`DistributedLockManager`, `LockSession`, `LockWatchdog`, `DeadlockDetector`, `OrphanedLockReclaimer`), and every use case as a MediatR **command** or **query** with its **handler** and FluentValidation **validator** | Domain, MediatR, FluentValidation |
+| **Infrastructure** | Adapters: `RedlockLockStore` + Lua scripts, `RedisCoordinationStore`, in-memory stores; hosted jobs (heartbeat, watchdog loop, leader-elected detector / reclaimer that **send commands**); OpenTelemetry | Application |
+| **Presentation** | `LockGuard.Api` (endpoints only build a request and call `ISender.Send`) and `LockGuard.Detector` (worker host) | Application, Infrastructure (composition root) |
+
+**One folder per use case, one class per file:**
+
+```text
+LockGuard.Application/Features/
+├── Simulations/
+│   ├── Common/                         # ScenarioOutcome, TransferResponse, DTOs
+│   └── Commands/
+│       ├── RunDeadlockScenario/        # RunDeadlockScenarioCommand, ...Handler, ...Validator
+│       ├── RunOrderedTransfer/
+│       ├── RunThreeWayDeadlock/        # + ThreeWayDeadlockResponse, ThreeWayWorkerResult
+│       ├── RunContention/              # + ContentionResponse
+│       ├── RunLongRunningJob/          # + LongRunningJobResponse
+│       ├── SimulateCrashedOwner/       # + CrashedOwnerResponse
+│       └── RunReentrantScenario/       # + ReentrantScenarioResponse, ReentrantAcquisitionDto
+├── Locks/
+│   └── Queries/
+│       ├── GetLocks/                   # GetLocksQuery, ...Handler, ...Validator, LockDto
+│       ├── GetWaitForGraph/            # + WaitForGraphResponse, CycleDto, WaitForGraphMermaidRenderer
+│       ├── GetLockEvents/              # GetLockEventsQuery, ...Handler, ...Validator
+│       ├── GetSessions/
+│       └── GetInstances/               # + InstanceDto
+└── Maintenance/
+    └── Commands/
+        ├── ScanDeadlocks/              # sent every second by the leader-elected detector worker
+        └── ReclaimStaleLocks/          # sent every 2 s by the leader-elected reclaimer
+```
+
+**Request pipeline.** Every request goes through two MediatR pipeline behaviors before its handler:
+
+```mermaid
+sequenceDiagram
+    participant E as Endpoint
+    participant M as MediatR (ISender)
+    participant L as LoggingBehavior
+    participant V as ValidationBehavior
+    participant H as Handler
+    E->>M: Send(RunDeadlockScenarioCommand)
+    M->>L: Handle
+    L->>V: next()
+    V->>V: run the command's FluentValidation validators
+    alt invalid
+        V-->>E: throw ValidationException → 400 ProblemDetails
+    else valid
+        V->>H: next()
+        H-->>E: TransferResponse { Outcome } → 200 / 409 / 423
+    end
+```
+
+* **Validation** failures become `400` problem details (`ValidationExceptionHandler`).
+* **Business outcomes** (`Completed`, `DeadlockVictim`, `Timeout`, `LockLost`, `ResourceBusy`, `Accepted`) are part of the
+  response (`IScenarioResponse.Outcome`) and mapped to HTTP status codes in one place (`ScenarioResultExtensions`).
+* Lock exceptions that escape a handler are mapped by `DistributedLockExceptionHandler` (409 / 423).
+* The detector worker is just another MediatR client: its hosted services send `ScanDeadlocksCommand` and
+  `ReclaimStaleLocksCommand` in a fresh DI scope on every tick, while this instance holds the leader lease.
+
+> MediatR is pinned to **12.5.0**, the last Apache-2.0 release (13.x and later require a commercial license key).
+
 ## Redlock, TTL and the lock watchdog
 
 ### Redlock in one paragraph
@@ -156,7 +244,7 @@ sequenceDiagram
     Note over S: 2 votes >= quorum 2 and validity = 10s - 4ms - 102ms > 0<br/>=> ACQUIRED, fencing token = max(41, 17)
 ```
 
-The Lua scripts (`src/LockGuard.Redis/Scripts`) are small and atomic:
+The Lua scripts (`src/LockGuard.Infrastructure/Persistence/Redis/Scripts`) are small and atomic:
 
 | Script | Semantics |
 |---|---|
@@ -316,9 +404,12 @@ ASPNETCORE_ENVIRONMENT=Development LockGuard__Store=InMemory dotnet run
 
 ## Simulating deadlocks and reading the resolution reports
 
-All requests are also in [`docs/requests.http`](docs/requests.http). The JSON below was captured from a real local
-run of these endpoints (single API process with `LockGuard__Store=InMemory` and the detector/reclaimer enabled; session
-ids shortened). Against the Compose stack the responses have the same shape; only the instance names differ.
+All requests are also in [`docs/requests.http`](docs/requests.http). The JSON below was captured from a real local run
+of these endpoints (single API process with `LockGuard__Store=InMemory`, detector and reclaimer enabled; session ids
+shortened). Against the Compose stack the responses have the same shape; only instance names differ.
+
+Every simulation response carries an `outcome`: `Completed` → **200**, `Accepted` → **202**,
+`DeadlockVictim` / `LockLost` / `ResourceBusy` → **409**, `Timeout` → **423**. Invalid input → **400**.
 
 ### 1. Two-party deadlock across two replicas
 
@@ -327,24 +418,30 @@ curl -s -X POST "http://localhost:8081/api/test/deadlock-scenario-a?holdMs=1500"
 curl -s -X POST "http://localhost:8082/api/test/deadlock-scenario-b?holdMs=1500"
 ```
 
-One request completes, the other is the victim:
+One request completes, the other is the victim (`409`):
 
 ```json
-{ "status": "completed", "scenario": "scenario-a", "session": "s-ef9ab90f…", "attempts": 1,
-  "lockOrder": [ { "resource": "account:A", "fencingToken": 1 }, { "resource": "account:B", "fencingToken": 2 } ],
-  "elapsedMs": 3141 }
+{ "outcome": "Completed", "scenario": "scenario-b", "sessionId": "s-6e4303c8…", "attempts": 1, "previousAttempts": [],
+  "lockOrder": [ { "resource": "account:B", "fencingToken": 1 }, { "resource": "account:A", "fencingToken": 2 } ],
+  "elapsedMs": 3772, "retryable": false }
 ```
 
 ```json
-{ "status": "deadlock_victim", "scenario": "scenario-b", "session": "s-ca6ee60b…", "retryable": true,
-  "detail": "deadlock cycle [s-ca6ee60b… -[account:A]-> s-ef9ab90f… -[account:B]-> s-ca6ee60b…] detected by local-api; 's-ca6ee60b…' selected as victim",
-  "elapsedMs": 2664 }
+{ "outcome": "DeadlockVictim", "scenario": "scenario-a", "sessionId": "s-ff275a6a…", "attempts": 1, "lockOrder": [],
+  "detail": "deadlock cycle [s-6e4303c8… -[account:A]-> s-ff275a6a… -[account:B]-> s-6e4303c8…] detected by local-api; 's-ff275a6a…' selected as victim",
+  "elapsedMs": 3358, "retryable": true }
 ```
 
-With `?maxRetries=2` the victim backs off, retries the whole unit of work in a new session and **both** return `200`
-(`"attempts": 2`, `previousAttempts` lists the aborted session).
+With `?maxRetries=2` the victim backs off, retries the unit of work in a new session and **both** return `200`:
 
-While the two sessions are stuck, the live graph is available as JSON + Mermaid:
+```json
+{ "outcome": "Completed", "scenario": "scenario-b", "sessionId": "s-fb5c93e5…", "attempts": 2,
+  "previousAttempts": [ { "sessionId": "s-0bbca9ce…", "outcome": "DeadlockVictim", "detail": "deadlock cycle […]" } ],
+  "lockOrder": [ { "resource": "account:B", "fencingToken": 4 }, { "resource": "account:A", "fencingToken": 4 } ],
+  "elapsedMs": 5321 }
+```
+
+While the two sessions are stuck, the live graph is available as JSON + Mermaid (`GetWaitForGraphQuery`):
 
 ```bash
 curl -s http://localhost:8081/api/locks/wait-graph
@@ -353,10 +450,10 @@ curl -s http://localhost:8081/api/locks/wait-graph
 ```text
 deadlocked: true
 graph LR
-  n0["s-bc68ad76…"] -- "waits for account:A" --> n1["s-013c52f2…"]
-  n1["s-013c52f2…"] -- "waits for account:B" --> n0["s-bc68ad76…"]
-  style n1 fill:#ffdddd,stroke:#cc0000
+  n0["s-6e4303c8…"] -- "waits for account:A" --> n1["s-ff275a6a…"]
+  n1["s-ff275a6a…"] -- "waits for account:B" --> n0["s-6e4303c8…"]
   style n0 fill:#ffdddd,stroke:#cc0000
+  style n1 fill:#ffdddd,stroke:#cc0000
 ```
 
 ### 2. Three-party cycle
@@ -366,12 +463,20 @@ curl -s -X POST http://localhost:8081/api/test/three-way-deadlock
 ```
 
 ```json
-{ "scenario": "three-way-deadlock", "victims": 1, "completed": 2,
-  "outcomes": [
-    { "worker": 1, "path": "ledger:1 -> ledger:2", "outcome": "completed", "elapsedMs": 2655 },
-    { "worker": 2, "path": "ledger:2 -> ledger:3", "outcome": "completed", "elapsedMs": 2595 },
-    { "worker": 3, "path": "ledger:3 -> ledger:1", "outcome": "deadlock_victim", "elapsedMs": 2323,
-      "detail": "deadlock cycle [s-081b… -[ledger:1]-> s-27f0… -[ledger:2]-> s-f578… -[ledger:3]-> s-081b…] …" } ] }
+{ "scenario": "three-way-deadlock", "outcome": "Completed", "victims": 1, "completed": 2,
+  "workers": [
+    { "worker": 1, "path": "ledger:1 -> ledger:2", "outcome": "Completed", "elapsedMs": 3325 },
+    { "worker": 2, "path": "ledger:2 -> ledger:3", "outcome": "Completed", "elapsedMs": 2964 },
+    { "worker": 3, "path": "ledger:3 -> ledger:1", "outcome": "DeadlockVictim", "elapsedMs": 2818,
+      "detail": "deadlock cycle [s-55df… -[ledger:3]-> s-d408… -[ledger:1]-> s-6e40… -[ledger:2]-> s-55df…] …" } ] }
+```
+
+The detector then writes a resolution report (`GET /api/locks/events?kind=DeadlockResolved`):
+
+```json
+{ "kind": "DeadlockResolved",
+  "summary": "Deadlock [s-55df… -[ledger:3]-> s-d408… -[ledger:1]-> s-6e40… -[ledger:2]-> s-55df…] resolved 2003 ms after first detection by aborting s-d408….",
+  "victimSessionId": "s-d408…", "cycle": [ /* the three WaitEdges */ ], "detectedBy": "local-api" }
 ```
 
 ### 3. Crashed process, orphaned lock (600 s TTL)
@@ -382,29 +487,49 @@ curl -s "http://localhost:8081/api/locks/events?kind=OrphanedLockReclaimed&count
 ```
 
 ```json
-[ { "kind": "OrphanedLockReclaimed",
-    "summary": "Reclaimed 'payment:tx-1001' from session s-orphan-7eb9… on instance crashed-cb68b544 (held 3.4s, reason: owner_instance_unknown).",
-    "resource": "payment:tx-1001", "reason": "owner_instance_unknown" } ]
+{ "outcome": "Accepted", "resource": "payment:tx-1001", "ttlSeconds": 600, "orphanSessionId": "s-orphan-1ef1…",
+  "deadInstanceId": "crashed-7bc077a0", "expectedReclaimWithin": "~5s (MinLockAge + ScanInterval) instead of 600s" }
 ```
 
-The resource was free after ~3.4 s instead of 600 s.
+```json
+[ { "kind": "OrphanedLockReclaimed",
+    "summary": "Reclaimed 'payment:tx-1001' from session s-orphan-1ef1… on instance crashed-7bc077a0 (held 3.4s, reason: owner_instance_unknown).",
+    "resource": "payment:tx-1001", "reason": "owner_instance_unknown", "detectedBy": "local-api" } ]
+```
 
 ### 4. Watchdog on / off
 
 ```bash
 curl -s -X POST "http://localhost:8081/api/test/long-running?workMs=5000&leaseMs=1500"
-# {"status":"completed","leaseMs":1500,"workMs":5000,"watchdog":true,"expectedExtensions":10,...}
+# {"outcome":"Completed","leaseMs":1500,"workMs":5000,"watchdogEnabled":true,"expectedExtensions":10,"elapsedMs":4995,...}
 
 curl -s -X POST "http://localhost:8081/api/test/long-running?workMs=3000&leaseMs=1000&disableWatchdog=true"
-# {"status":"lock_lost","reason":"lock on 'report:monthly' is no longer owned by this session (lease expired or reclaimed)",
+# {"outcome":"LockLost","reason":"lock on 'report:monthly' is no longer owned by this session (lease expired or reclaimed)",
 #  "hint":"watchdog disabled: the lease expired while the work was still running",...}
 ```
 
-### 5. Re-entrancy and idempotent retry
+### 5. Re-entrancy and idempotent session id
 
 ```bash
 curl -s -X POST -H "X-Lock-Session-Id: order-42-req" "http://localhost:8081/api/test/reentrant?resource=order:42&depth=3"
-# holdCount 3: level 1 IsReentrant=false (hit Redis), levels 2-3 IsReentrant=true (in-session)
+```
+
+```json
+{ "outcome": "Completed", "resource": "order:42", "sessionId": "order-42-req", "holdCount": 3,
+  "acquisitions": [ { "level": 1, "isReentrant": false, "fencingToken": 1 },
+                    { "level": 2, "isReentrant": true,  "fencingToken": 1 },
+                    { "level": 3, "isReentrant": true,  "fencingToken": 1 } ] }
+```
+
+### 6. Validation (FluentValidation pipeline)
+
+```bash
+curl -s -X POST "http://localhost:8081/api/test/deadlock-scenario-a?holdMs=99999"
+```
+
+```json
+{ "title": "One or more validation errors occurred.", "status": 400,
+  "errors": { "HoldMs": [ "'Hold Ms' must be between 0 and 30000. You entered 99999." ] } }
 ```
 
 ### Event log
@@ -497,45 +622,55 @@ All settings live under the `LockGuard` section (`appsettings.json`, or environm
 ## Tests
 
 ```bash
-# Unit + scenario tests on the in-memory store (no Docker needed)
-dotnet test tests/LockGuard.Core.Tests
-
-# Integration tests against three real Redis masters (Testcontainers, needs Docker)
-dotnet test tests/LockGuard.IntegrationTests
+dotnet test tests/LockGuard.UnitTests
 ```
 
-| Suite | Highlights |
+The suite needs no Docker and no Redis: it runs the real Application layer (MediatR + validation pipeline) on top of the
+in-memory persistence adapter, which has the same semantics as the Lua scripts (TTL, compare-and-set, idempotent
+re-acquisition, fencing tokens).
+
+| Folder | Highlights |
 |---|---|
-| `WaitForGraphTests` | 2- and 3-party cycles, chains, disjoint cycles, order-independent signatures, a 5 000-session cycle (iterative Tarjan) |
-| `LockSessionTests` | re-entrancy, idempotent retry on another instance, 40 parallel workers with a non-atomic counter (`Task.WhenAll`), fencing tokens, timeouts, WFG edges, ordered acquisition never deadlocking |
-| `WatchdogTests` | 30 s of work on a 3 s lease, expiry without watchdog, lost-lease notification, store-verified commit check |
-| `DeadlockDetectionTests` | opposite-order transfers raced with `Task.WhenAll` → exactly one victim; three-way cycle; confirmation scans; unresponsive victim force-released; stale wait records ignored |
-| `OrphanedLockReclaimerTests` | dead / unknown instance, no-expiry key, zombie hold time, leader lock exemption, compare-and-delete safety |
-| `RedlockIntegrationTests` | Lua semantics on real Redis, writes on all nodes, mutual exclusion across two instances with a Redis counter, cross-instance deadlock resolution, orphan and no-expiry reclamation |
-| `RedlockFaultToleranceTests` | lock survives one paused node, fails (and rolls back) with two paused nodes |
+| `Domain/` | Wait-For Graph: 2- and 3-party cycles, chains, disjoint cycles, order-independent signatures, a 5 000-session cycle (iterative Tarjan); victim selection rules |
+| `Application/Locking/` | re-entrancy, idempotent retry on another instance, 40 parallel workers with a non-atomic counter (`Task.WhenAll`), fencing tokens, timeouts, ordered acquisition; watchdog: 30 s of work on a 3 s lease, expiry without watchdog, lost-lease notification, store-verified commit check |
+| `Application/Detection/` | opposite-order transfers raced with `Task.WhenAll` → exactly one victim; three-way cycle; confirmation scans; unresponsive victim force-released; stale wait records ignored |
+| `Application/Reclamation/` | dead / unknown instance, no-expiry key, zombie hold time, leader lock exemption, compare-and-delete safety |
+| `Application/Features/` | handlers through `ISender`: scenario A + B concurrently (one victim / with retries both complete), ordered transfer, three-way, crash + `ReclaimStaleLocksCommand`, contention and timeout, watchdog-less job, wait-for-graph / locks / sessions / instances queries |
+| `Application/Behaviors/` | `ValidationBehavior` rejects invalid commands and queries before the handler runs |
+| `Application/Validators/` | every command / query validator: bounds, identical resources, reserved `lockguard:` prefix, session id format, enum values |
 
 ## Project structure
 
 ```text
 distributed-lock-deadlock-detector/
 ├── src/
-│   ├── LockGuard.Core/              # store-agnostic engine (no NuGet dependencies)
-│   │   ├── Abstractions/            # ILockStore, ICoordinationStore, IDistributedLockManager
-│   │   ├── Locking/                 # DistributedLockManager, LockSession, LockHandle, exceptions
-│   │   ├── Watchdog/                # LockWatchdog (lease auto-extension)
-│   │   ├── Detection/               # WaitForGraph (Tarjan), DeadlockDetector, victim selection
-│   │   ├── Reclaim/                 # OrphanedLockReclaimer
-│   │   ├── Coordination/            # LeaderElection, internal resources
-│   │   ├── Diagnostics/             # LockGuardTelemetry (Meter + ActivitySource)
-│   │   ├── Hosting/                 # BackgroundServices, DI (C# 14 extension members)
-│   │   └── InMemory/                # in-memory stores (tests / local runs)
-│   ├── LockGuard.Redis/             # Redlock store, Redis coordination store, Lua scripts
-│   ├── LockGuard.Api/               # Web API: simulation + diagnostics endpoints
-│   ├── LockGuard.Detector/          # background worker: detector + reclaimer
-│   └── Shared/                      # OpenTelemetry + store selection (linked into both hosts)
+│   ├── LockGuard.Domain/            # innermost layer, no dependencies
+│   │   ├── Locks/                   # LockOwner, LockInfo, AcquireResult, AcquireStatus, ResourceGroup
+│   │   ├── Sessions/                # SessionInfo
+│   │   ├── Coordination/            # WaitRecord, InstanceHeartbeat, AbortSignal, InternalResources
+│   │   ├── Deadlocks/               # WaitForGraph (Tarjan), DeadlockCycle, WaitEdge, victim selection
+│   │   ├── Reclamation/             # StaleLockPolicy, StaleLockReason
+│   │   ├── Events/                  # LockEventReport, LockEventKind
+│   │   └── Exceptions/              # DeadlockVictimException, LockAcquisitionTimeoutException, LockLostException
+│   ├── LockGuard.Application/
+│   │   ├── Abstractions/            # ports: ILockStore, ICoordinationStore, IDistributedLockManager
+│   │   ├── Common/                  # Options, Behaviors (validation, logging), Validation rules, Telemetry
+│   │   ├── Locking/                 # DistributedLockManager, LockSession, LockHandle, Watchdog/
+│   │   ├── Coordination/            # LeaderElection
+│   │   ├── Detection/               # DeadlockDetector
+│   │   ├── Reclamation/             # OrphanedLockReclaimer
+│   │   ├── Features/                # CQRS use cases (see above)
+│   │   └── DependencyInjection.cs   # AddApplication(): MediatR, validators, services
+│   ├── LockGuard.Infrastructure/
+│   │   ├── Persistence/Redis/       # RedlockLockStore, RedisCoordinationStore, RedisNodePool, Scripts/*.lua
+│   │   ├── Persistence/InMemory/    # in-memory adapters (local runs, tests)
+│   │   ├── BackgroundJobs/          # heartbeat, watchdog loop, leader-elected detector / reclaimer
+│   │   ├── Observability/           # OpenTelemetry, /metrics, /health
+│   │   └── DependencyInjection.cs   # AddInfrastructure(): options binding, store selection, jobs
+│   ├── LockGuard.Api/               # Endpoints/, ExceptionHandling/, Http/ (outcome → status code)
+│   └── LockGuard.Detector/          # worker host
 ├── tests/
-│   ├── LockGuard.Core.Tests/        # xUnit, in-memory, Task.WhenAll scenarios
-│   └── LockGuard.IntegrationTests/  # xUnit + Testcontainers (3 Redis nodes)
+│   └── LockGuard.UnitTests/         # Domain/, Application/{Locking,Detection,Reclamation,Features,Behaviors,Validators}
 ├── loadtest/k6/                     # deadlock-storm.js, contention.js
 ├── deploy/                          # Prometheus config, Grafana provisioning + dashboard
 ├── docs/requests.http
@@ -545,6 +680,9 @@ distributed-lock-deadlock-detector/
 
 ## Design decisions and limitations
 
+* **Why Clean Architecture for a POC?** The interesting logic (graph algorithm, victim selection, stale-lock rules) is
+  pure and lives in the Domain; the use cases are small MediatR handlers that are easy to test through `ISender`; Redis
+  is just one adapter of the `ILockStore` port, which is why the whole test suite runs without Docker.
 * **Why a custom Redlock instead of RedLock.net?** Re-entrancy, idempotent session ownership, the wait-for graph and
   forced compare-and-delete release all need control over the per-node script and the owner identity. The store is
   ~250 lines on top of StackExchange.Redis and follows the published algorithm (quorum, drift, rollback).

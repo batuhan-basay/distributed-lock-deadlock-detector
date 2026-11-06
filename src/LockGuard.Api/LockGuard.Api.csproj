@@ -1,29 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Presentation layer: thin HTTP endpoints that translate requests into MediatR commands / queries. -->
   <PropertyGroup>
     <RootNamespace>LockGuard.Api</RootNamespace>
     <UserSecretsId>lockguard-api</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
-    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\LockGuard.Core\LockGuard.Core.csproj" />
-    <ProjectReference Include="..\LockGuard.Redis\LockGuard.Redis.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <InternalsVisibleTo Include="LockGuard.IntegrationTests" />
+    <ProjectReference Include="..\LockGuard.Application\LockGuard.Application.csproj" />
+    <ProjectReference Include="..\LockGuard.Infrastructure\LockGuard.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

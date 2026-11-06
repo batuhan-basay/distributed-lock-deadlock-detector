@@ -1,12 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/LockGuard.Domain/LockGuard.Domain.csproj" />
+    <Project Path="src/LockGuard.Application/LockGuard.Application.csproj" />
+    <Project Path="src/LockGuard.Infrastructure/LockGuard.Infrastructure.csproj" />
     <Project Path="src/LockGuard.Api/LockGuard.Api.csproj" />
-    <Project Path="src/LockGuard.Core/LockGuard.Core.csproj" />
     <Project Path="src/LockGuard.Detector/LockGuard.Detector.csproj" />
-    <Project Path="src/LockGuard.Redis/LockGuard.Redis.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/LockGuard.Core.Tests/LockGuard.Core.Tests.csproj" />
-    <Project Path="tests/LockGuard.IntegrationTests/LockGuard.IntegrationTests.csproj" />
+    <Project Path="tests/LockGuard.UnitTests/LockGuard.UnitTests.csproj" />
   </Folder>
 </Solution>

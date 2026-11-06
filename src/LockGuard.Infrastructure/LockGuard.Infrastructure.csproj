@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Adapters for the Application ports: Redlock / Redis and in-memory persistence, hosted background jobs
+    (watchdog loop, heartbeat, leader-elected detector and reclaimer) and OpenTelemetry wiring.
+  -->
+  <PropertyGroup>
+    <RootNamespace>LockGuard.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LockGuard.Application\LockGuard.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence\Redis\Scripts\*.lua" LogicalName="LockGuard.Infrastructure.Persistence.Redis.Scripts.%(Filename).lua" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LockGuard.UnitTests" />
+  </ItemGroup>
+
+</Project>

@@ -1,28 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <!--
-    Background worker. It uses the Web SDK only to expose /metrics (Prometheus) and /health; all the actual work happens
-    in hosted BackgroundServices: DeadlockDetectorService, OrphanedLockReclaimerService and InstanceHeartbeatService.
+    Background worker host. All the work happens in hosted services from the Infrastructure layer, which send
+    ScanDeadlocksCommand / ReclaimStaleLocksCommand through MediatR while this instance is the elected leader.
+    The Web SDK is only used to expose /metrics (Prometheus) and /health.
   -->
   <PropertyGroup>
     <RootNamespace>LockGuard.Detector</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
-    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\LockGuard.Core\LockGuard.Core.csproj" />
-    <ProjectReference Include="..\LockGuard.Redis\LockGuard.Redis.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
+    <ProjectReference Include="..\LockGuard.Application\LockGuard.Application.csproj" />
+    <ProjectReference Include="..\LockGuard.Infrastructure\LockGuard.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

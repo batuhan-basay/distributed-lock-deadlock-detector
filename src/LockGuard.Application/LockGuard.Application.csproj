@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Use cases (CQRS with MediatR) and application services: lock sessions, watchdog, deadlock detection, reclamation.
+    Depends only on the Domain layer and on abstractions; persistence and hosting are provided by Infrastructure.
+  -->
+  <PropertyGroup>
+    <RootNamespace>LockGuard.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LockGuard.Domain\LockGuard.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LockGuard.UnitTests" />
+  </ItemGroup>
+
+</Project>

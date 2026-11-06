@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Innermost layer: lock / session / wait-for-graph concepts and the pure algorithms that operate on them.
+    No framework, no infrastructure and no NuGet dependencies.
+  -->
+  <PropertyGroup>
+    <RootNamespace>LockGuard.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>
